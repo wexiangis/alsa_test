@@ -26,5 +26,8 @@ typedef struct SNDPCMContainer {
 int play_wav(char *filename);
 int sys_volume_set(uint8_t vol_value);
 
+//////
+int record_wav(char *filename,uint32_t duration_time);
+
 #endif
 

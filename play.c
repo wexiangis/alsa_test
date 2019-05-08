@@ -345,14 +345,14 @@ static void SNDWAV_Record(SNDPCMContainer_t *sndpcm, WAVContainer_t *wav, int fd
     }
 }
 /*******************************************************************************
- * 名称: bl_audio_record_wav
+ * 名称: record_wav
  * 功能: 录音主函数
  * 参数: filename 文件路径 (如：/home/user/record.wav)
  *      duration_time 录音时间 单位：秒
  * 返回: 0：正常 -1:错误
  * 说明: 无
  ******************************************************************************/
-static int bl_audio_record_wav(char *filename,uint32_t duration_time)
+int record_wav(char *filename,uint32_t duration_time)
 {
     // char *filename;
     char *devicename = "default";
@@ -445,7 +445,7 @@ static int SNDWAV_P_SaveRead(int fd, void *buf, size_t count)
  ******************************************************************************/
 static void SNDWAV_Play(SNDPCMContainer_t *sndpcm, WAVContainer_t *wav, int fd)
 {
-    int i = 0, bit_count = 3;
+    int i = 0, bit_count = 0;
     uint16_t value;
 
     int load, ret;
@@ -475,19 +475,22 @@ static void SNDWAV_Play(SNDPCMContainer_t *sndpcm, WAVContainer_t *wav, int fd)
                 break;
             ret = SNDWAV_P_SaveRead(fd, sndpcm->data_buf + load, c);
             
-            for(i = load; i < ret+load; i+=2)
+            if(bit_count)
             {
-                value = sndpcm->data_buf[i+1];
-                value = (value<<8) | sndpcm->data_buf[i];
-                //
-                if(value&0x8000)
-                    value = (0xFFFF<<(16-bit_count)) | (value>>bit_count);
-                else
-                    value = value>>bit_count;
-                // value *= 0.01;
-                //
-                sndpcm->data_buf[i+1] = value>>8;
-                sndpcm->data_buf[i] = value&0xFF;
+                for(i = load; i < ret+load; i+=2)
+                {
+                    value = sndpcm->data_buf[i+1];
+                    value = (value<<8) | sndpcm->data_buf[i];
+                    //
+                    if(value&0x8000)
+                        value = (0xFFFF<<(16-bit_count)) | (value>>bit_count);
+                    else
+                        value = value>>bit_count;
+                    // value *= 0.01;
+                    //
+                    sndpcm->data_buf[i+1] = value>>8;
+                    sndpcm->data_buf[i] = value&0xFF;
+                }
             }
             
             if (ret < 0)
@@ -540,8 +543,9 @@ int play_wav(char *filename)
 		fprintf(stderr, "Error snd_output_stdio_attach\n");
 		goto Err;
 	}
-	// 打开PCM，最后一个参数为0意味着标准配置
-	if (snd_pcm_open(&playback.handle, devicename, SND_PCM_STREAM_PLAYBACK, 0) < 0)
+	// 打开PCM，最后一个参数为0意味着标准配置 SND_PCM_ASYNC
+	// if (snd_pcm_open(&playback.handle, devicename, SND_PCM_STREAM_PLAYBACK, 0) < 0)
+	if (snd_pcm_open(&playback.handle, devicename, SND_PCM_STREAM_PLAYBACK, SND_PCM_ASYNC) < 0)
 	{
 		fprintf(stderr, "Error snd_pcm_open [ %s]\n", devicename);
 		goto Err;

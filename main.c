@@ -1,3 +1,6 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
 
 #include "play.h"
 
@@ -6,11 +9,31 @@
 #if(TEST == 2)
 
 #define T1_WAV "./sin.wav"
+#define T2_WAV "./sin2.wav"
+
+#define TP_WAV "./create.wav"
+
+#define TC_WAV "./capture.wav"
+
+void fun(void)
+{
+    usleep(100000);
+    // play_wav(T4_WAV);
+    record_wav("./capture.wav", 1);
+}
 
 int main()
 {
-    // sys_volume_set(10);
-    play_wav(T1_WAV);
+    pthread_t th;
+
+    sys_volume_set(10);
+
+    pthread_create(&th, NULL, (void*)&fun, NULL);
+
+    usleep(500000);
+
+    play_wav(T2_WAV);
+    // play_wav(TC_WAV);
 
     return 0;
 }
