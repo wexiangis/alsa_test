@@ -19,20 +19,20 @@ void fun(void)
 {
     usleep(100000);
     // play_wav(T4_WAV);
-    record_wav("./capture.wav", 1);
+    // record_wav(TC_WAV, 1);
 }
 
 int main()
 {
     pthread_t th;
 
-    sys_volume_set(10);
+    // sys_volume_set(10);
 
     pthread_create(&th, NULL, (void*)&fun, NULL);
 
-    usleep(500000);
+    usleep(100000);
 
-    play_wav(T2_WAV);
+    play_wav(T1_WAV);
     // play_wav(TC_WAV);
 
     return 0;
