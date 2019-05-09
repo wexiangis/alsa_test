@@ -456,13 +456,16 @@ static int SNDWAV_P_SaveRead(int fd, void *buf, size_t count)
  ******************************************************************************/
 static void SNDWAV_Play(SNDPCMContainer_t *sndpcm, WAVContainer_t *wav, int fd)
 {
-    int i = 0, bit_count = 0;
+    int i = 0, bit_count = 4;
     int16_t *valueP;
 
     int load, ret;
     off64_t written = 0;
     off64_t c;
     off64_t count = LE_INT(wav->chunk.length);
+
+    //插入音频
+    int fd2 = 0;
 
     load = 0;
     while (written < count)
