@@ -10,16 +10,16 @@
 
 #define T1_WAV "./sin.wav"
 #define T2_WAV "./sin2.wav"
+#define TT_WAV "./test.wav"
 
 #define TP_WAV "./create.wav"
-
 #define TC_WAV "./capture.wav"
 
 void fun(void)
 {
-    usleep(100000);
-    // play_wav(T4_WAV);
-    // record_wav(TC_WAV, 1);
+    // record_wav(TC_WAV, 3);
+
+    // play_wav(TT_WAV);
 }
 
 int main()
@@ -30,11 +30,12 @@ int main()
 
     pthread_create(&th, NULL, (void*)&fun, NULL);
 
-    usleep(100000);
-
     play_wav(T1_WAV);
+    // play_wav(TP_WAV);
     // play_wav(TC_WAV);
+    // play_wav(TT_WAV);
 
+    pthread_join(th, NULL);
     return 0;
 }
 

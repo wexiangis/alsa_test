@@ -260,6 +260,17 @@ static int SNDWAV_SetParams(SNDPCMContainer_t *sndpcm, WAVContainer_t *wav)
 
     sndpcm->chunk_bytes = sndpcm->chunk_size * sndpcm->bits_per_frame / 8;
 
+    printf("---- wav info -----\n  通道数: %d\n  采样率: %d Hz\n  采样位数: %d bit\n  总数据量: %ld Bytes\n"
+        "  每次写入帧数: %ld\n  每帧字节数: %ld Bytes\n  每次读写字节数: %ld Bytes\n  缓冲区大小: %ld Bytes\n", 
+        wav->format.channels,
+        wav->format.sample_rate,
+        wav->format.sample_length,
+        wav->chunk.length,
+        sndpcm->chunk_size,
+        sndpcm->bits_per_frame/8,
+        sndpcm->chunk_bytes,
+        sndpcm->buffer_size);
+
     /* Allocate audio data buffer */
     sndpcm->data_buf = (uint8_t *)malloc(sndpcm->chunk_bytes);
     if (!sndpcm->data_buf) {
@@ -446,19 +457,12 @@ static int SNDWAV_P_SaveRead(int fd, void *buf, size_t count)
 static void SNDWAV_Play(SNDPCMContainer_t *sndpcm, WAVContainer_t *wav, int fd)
 {
     int i = 0, bit_count = 0;
-    uint16_t value;
+    int16_t *valueP;
 
     int load, ret;
     off64_t written = 0;
     off64_t c;
     off64_t count = LE_INT(wav->chunk.length);
-
-    printf("---- wav info -----\n  通道数: %d\n  采样率: %d\n  采样位数: %d\n  count: %d\n  chunk_bytes: %d\n", 
-        wav->format.channels,
-        wav->format.sample_rate,
-        wav->format.sample_length,
-        count,
-        sndpcm->chunk_bytes);
 
     load = 0;
     while (written < count)
@@ -473,25 +477,8 @@ static void SNDWAV_Play(SNDPCMContainer_t *sndpcm, WAVContainer_t *wav, int fd)
 
             if (c == 0)
                 break;
-            ret = SNDWAV_P_SaveRead(fd, sndpcm->data_buf + load, c);
             
-            if(bit_count)
-            {
-                for(i = load; i < ret+load; i+=2)
-                {
-                    value = sndpcm->data_buf[i+1];
-                    value = (value<<8) | sndpcm->data_buf[i];
-                    //
-                    if(value&0x8000)
-                        value = (0xFFFF<<(16-bit_count)) | (value>>bit_count);
-                    else
-                        value = value>>bit_count;
-                    // value *= 0.01;
-                    //
-                    sndpcm->data_buf[i+1] = value>>8;
-                    sndpcm->data_buf[i] = value&0xFF;
-                }
-            }
+            ret = SNDWAV_P_SaveRead(fd, sndpcm->data_buf + load, c);
             
             if (ret < 0)
             {
@@ -502,10 +489,32 @@ static void SNDWAV_Play(SNDPCMContainer_t *sndpcm, WAVContainer_t *wav, int fd)
                 break;
             load += ret;
         } while ((size_t)load < sndpcm->chunk_bytes);
+            
+        printf("load = %ld, written = %ld\n", load, written+load);
+
+        if(bit_count)
+        {
+            for(i = 0, valueP = (int16_t*)sndpcm->data_buf; i < load/2; i++)
+            {
+                // if(valueP[i]&0x8000)
+                //     valueP[i] = (0xFFFF<<(16-bit_count)) | (valueP[i]>>bit_count);
+                // else
+                //     valueP[i] = valueP[i]>>bit_count;
+                valueP[i] *= 0.0625;
+            }
+        }
 
         /* Transfer to size frame */
         load = load * 8 / sndpcm->bits_per_frame;
+
         ret = SNDWAV_WritePcm(sndpcm, load);
+        // ret = SNDWAV_WritePcm(sndpcm, load);
+        // ret = SNDWAV_WritePcm(sndpcm, load);
+        // ret = SNDWAV_WritePcm(sndpcm, load);
+        // ret = SNDWAV_WritePcm(sndpcm, load);
+        // ret = SNDWAV_WritePcm(sndpcm, load);
+        // ret = SNDWAV_WritePcm(sndpcm, load);
+
         if (ret != load)
             break;
 

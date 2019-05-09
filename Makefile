@@ -1,5 +1,5 @@
-#CC=arm-linux-gnueabihf-
-CC=
+#CC:=arm-linux-gnueabihf-
+CC:=
 
 ifeq ($(CC),arm-linux-gnueabihf-)
 LIBS = -L./lib/alsa/lib
