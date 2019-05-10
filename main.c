@@ -6,9 +6,13 @@
 
 #define T1_WAV "./sin.wav"
 #define T2_WAV "./sin2.wav"
+
 #define TT_WAV "./test.wav"
 #define TT2_WAV "./test2.wav"
 #define TT3_WAV "./test3.wav"
+
+#define MUSIC_WAV "./music.wav"
+#define MUSIC2_WAV "./music2.wav"
 
 #define TP_WAV "./create.wav"
 #define TC_WAV "./capture.wav"
@@ -17,21 +21,19 @@
 
 #if(TEST == 3)
 
+uint8_t reduce = 2;
+
 void fun(SNDPCMContainer2_t *playback2)
 {
-    while(playback2->run)
-    {
-        circle_play_load_wav(playback2, TT3_WAV);
-        sleep(4);
-    }
+    circle_play_load_wav(playback2, MUSIC_WAV, reduce);
 }
 
 int main()
 {
-    char input;
+    char input[16];
     pthread_t th;
 
-    sys_volume_set(7);
+    // sys_volume_set(7);
 
     SNDPCMContainer2_t *playback2 = circle_play_init();
 
@@ -47,19 +49,27 @@ int main()
 
     while(1)
     {
-        input = getc(stdin);
-        if(input == '1')
-            circle_play_load_wav(playback2, T1_WAV);
-        else if(input == '2')
-            circle_play_load_wav(playback2, T2_WAV);
-        else if(input == '3')
-            circle_play_load_wav(playback2, TT_WAV);
-        else if(input == '4')
-            circle_play_load_wav(playback2, TT2_WAV);
-        else if(input == '5')
-            circle_play_load_wav(playback2, TT3_WAV);
-        else if(input == 'q')
-            break;
+        if(scanf("%s", input) > 0)
+        {
+            if(input[0] == '1')
+                circle_play_load_wav(playback2, T1_WAV, reduce);
+            else if(input[0] == '2')
+                circle_play_load_wav(playback2, T2_WAV, reduce);
+            else if(input[0] == '3')
+                circle_play_load_wav(playback2, TT_WAV, reduce);
+            else if(input[0] == '4')
+                circle_play_load_wav(playback2, TT2_WAV, reduce);
+            else if(input[0] == '5')
+                circle_play_load_wav(playback2, TT3_WAV, reduce);
+
+            else if(input[0] == 'm' && input[1] == '1')
+                circle_play_load_wav(playback2, MUSIC_WAV, reduce);
+            else if(input[0] == 'm' && input[1] == '2')
+                circle_play_load_wav(playback2, MUSIC2_WAV, reduce);
+
+            else if(input[0] == 'q')
+                break;
+        }
         usleep(10000);
     }
 
