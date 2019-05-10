@@ -4,16 +4,73 @@
 
 #include "play.h"
 
-#define TEST 2
-
-#if(TEST == 2)
-
 #define T1_WAV "./sin.wav"
 #define T2_WAV "./sin2.wav"
 #define TT_WAV "./test.wav"
+#define TT2_WAV "./test2.wav"
+#define TT3_WAV "./test3.wav"
 
 #define TP_WAV "./create.wav"
 #define TC_WAV "./capture.wav"
+
+#define TEST 3
+
+#if(TEST == 3)
+
+void fun(SNDPCMContainer2_t *playback2)
+{
+    while(playback2->run)
+    {
+        circle_play_load_wav(playback2, TT3_WAV);
+        sleep(4);
+    }
+}
+
+int main()
+{
+    char input;
+    pthread_t th;
+
+    sys_volume_set(7);
+
+    SNDPCMContainer2_t *playback2 = circle_play_init();
+
+    if(!playback2)
+    {
+        fprintf(stderr, "playback2 init err\n");
+        return -1;
+    }
+    
+    /////
+
+    pthread_create(&th, NULL, (void*)&fun, (void*)playback2);
+
+    while(1)
+    {
+        input = getc(stdin);
+        if(input == '1')
+            circle_play_load_wav(playback2, T1_WAV);
+        else if(input == '2')
+            circle_play_load_wav(playback2, T2_WAV);
+        else if(input == '3')
+            circle_play_load_wav(playback2, TT_WAV);
+        else if(input == '4')
+            circle_play_load_wav(playback2, TT2_WAV);
+        else if(input == '5')
+            circle_play_load_wav(playback2, TT3_WAV);
+        else if(input == 'q')
+            break;
+        usleep(10000);
+    }
+
+    /////
+
+    circle_play_exit(playback2);
+
+    return 0;
+}
+
+#elif(TEST == 2)
 
 void fun(void)
 {

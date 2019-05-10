@@ -28,11 +28,57 @@ typedef struct SNDPCMContainer {
     uint8_t *data_buf;
 } SNDPCMContainer_t;
 
+//-------------------- XXX --------------------------
+#include <pthread.h>
+
+#define DEFAULT_CIRCLE_CHANNELS 2
+#define DEFAULT_CIRCLE_FREQ 44100
+#define DEFAULT_CIRCLE_SAMPLE 16
+#define DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE 1048576//262144
+#define DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE16 (DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE/2)
+#define DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE32 (DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE/4)
+
+typedef union CircleBuffType
+{
+    uint8_t U8[DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE];
+    uint16_t U16[DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE16];
+    uint32_t U32[DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE32];
+}CircleBuff_Type;
+
+typedef union CircleBuffPoint
+{
+    uint8_t *U8;
+    int16_t *S16;
+    int32_t *S32;
+}CircleBuff_Point;
+
+typedef struct SNDPCMContainer2 {
+    SNDPCMContainer_t *playback;
+    //
+    CircleBuff_Type buff;
+    CircleBuff_Point start, end;//缓冲区头尾指针
+    CircleBuff_Point head, tail;//当前缓冲区读写指针
+    pthread_mutex_t lock;
+    //
+    pthread_t th_paly;
+    pthread_t th_msg;
+    //
+    uint8_t run;
+} SNDPCMContainer2_t;
+
 ///////
 int play_wav(char *filename);
 int record_wav(char *filename,uint32_t duration_time);
-
 int sys_volume_set(uint8_t vol_value);
+
+///////
+SNDPCMContainer2_t *circle_play_init(void);
+void circle_play_exit(SNDPCMContainer2_t *playback2);
+
+void circle_play_load_wav(SNDPCMContainer2_t *playback2, char *wavPath);
+CircleBuff_Point circle_play_load_wavStream(SNDPCMContainer2_t *playback2, 
+    CircleBuff_Point src, uint32_t len, 
+    uint32_t freq, uint8_t channels, uint8_t sample, CircleBuff_Point head);
 
 #endif
 
