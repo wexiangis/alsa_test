@@ -13,7 +13,7 @@
 void fun(SNDPCMContainer2_t *playback2)
 {
     // circle_play_load_wav(playback2, "./music.wav");
-    circle_play_load_wav(playback2, "./music2.wav");
+    // circle_play_load_wav(playback2, "./music2.wav");
     // circle_play_load_wav(playback2, RECORD_WAV);
 }
 

@@ -1082,7 +1082,7 @@ CircleBuff_Point circle_play_load_wavStream(
     return pHead;
 }
 
-void circle_play_load_wav(
+void _circle_play_load_wav(
     SNDPCMContainer2_t *playback2,
     char *wavPath)
 {
@@ -1180,3 +1180,32 @@ void circle_play_load_wav(
     printf("%s : end\n", wavPath);
 }
 
+void circle_play_load_wav_thread(CirclePalyLoadWav_Param *param)
+{
+    _circle_play_load_wav(param->playback2, param->wavPath);
+    if(param->wavPath)
+        free(param->wavPath);
+    free(param);
+}
+
+void circle_play_load_wav(
+    SNDPCMContainer2_t *playback2,
+    char *wavPath)
+{
+    CirclePalyLoadWav_Param *param;
+    pthread_t th;
+    pthread_attr_t attr;
+    //
+    param = (CirclePalyLoadWav_Param*)calloc(1, sizeof(CirclePalyLoadWav_Param));
+    //参数拷贝
+    param->playback2 = playback2;
+    param->wavPath = (char*)calloc(strlen(wavPath)+1, sizeof(char));
+    strcpy(param->wavPath, wavPath);
+    //attr init
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);   //禁用线程同步, 线程运行结束后自动释放
+    //
+    pthread_create(&th, &attr, (void*)&circle_play_load_wav_thread, (void*)param);
+    //attr destroy
+    pthread_attr_destroy(&attr);
+}

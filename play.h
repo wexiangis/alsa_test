@@ -75,10 +75,6 @@ int sys_volume_set(uint8_t vol_value);
 SNDPCMContainer2_t *circle_play_init(void);
 void circle_play_exit(SNDPCMContainer2_t *playback2);
 
-void circle_play_load_wav(
-    SNDPCMContainer2_t *playback2,
-    char *wavPath);
-
 CircleBuff_Point circle_play_load_wavStream(
     SNDPCMContainer2_t *playback2,
     CircleBuff_Point src,
@@ -87,6 +83,15 @@ CircleBuff_Point circle_play_load_wavStream(
     uint8_t channels,
     uint8_t sample,
     CircleBuff_Point head);
+
+typedef struct{
+    SNDPCMContainer2_t *playback2;
+    char *wavPath;
+}CirclePalyLoadWav_Param;
+
+void circle_play_load_wav(
+    SNDPCMContainer2_t *playback2,
+    char *wavPath);
 
 #endif
 
