@@ -21,11 +21,9 @@
 
 #if(TEST == 3)
 
-uint8_t reduce = 2;
-
 void fun(SNDPCMContainer2_t *playback2)
 {
-    circle_play_load_wav(playback2, MUSIC_WAV, reduce);
+    circle_play_load_wav(playback2, MUSIC2_WAV);
 }
 
 int main()
@@ -33,7 +31,7 @@ int main()
     char input[16];
     pthread_t th;
 
-    // sys_volume_set(7);
+    // sys_volume_set(10);
 
     SNDPCMContainer2_t *playback2 = circle_play_init();
 
@@ -52,20 +50,20 @@ int main()
         if(scanf("%s", input) > 0)
         {
             if(input[0] == '1')
-                circle_play_load_wav(playback2, T1_WAV, reduce);
+                circle_play_load_wav(playback2, T1_WAV);
             else if(input[0] == '2')
-                circle_play_load_wav(playback2, T2_WAV, reduce);
+                circle_play_load_wav(playback2, T2_WAV);
             else if(input[0] == '3')
-                circle_play_load_wav(playback2, TT_WAV, reduce);
+                circle_play_load_wav(playback2, TT_WAV);
             else if(input[0] == '4')
-                circle_play_load_wav(playback2, TT2_WAV, reduce);
+                circle_play_load_wav(playback2, TT2_WAV);
             else if(input[0] == '5')
-                circle_play_load_wav(playback2, TT3_WAV, reduce);
+                circle_play_load_wav(playback2, TT3_WAV);
 
             else if(input[0] == 'm' && input[1] == '1')
-                circle_play_load_wav(playback2, MUSIC_WAV, reduce);
+                circle_play_load_wav(playback2, MUSIC_WAV);
             else if(input[0] == 'm' && input[1] == '2')
-                circle_play_load_wav(playback2, MUSIC2_WAV, reduce);
+                circle_play_load_wav(playback2, MUSIC2_WAV);
 
             else if(input[0] == 'q')
                 break;

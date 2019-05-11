@@ -731,19 +731,19 @@ void circle_play_thread(SNDPCMContainer2_t *playback2)
         {
             tail.U8 = playback2->tail.U8;
             //
-            printf("head: %ld, tail: %ld\n", 
-                playback2->head.U8 - playback2->start.U8,
-                tail.U8 - playback2->start.U8);
+            // printf("head: %ld, tail: %ld\n", 
+            //     playback2->head.U8 - playback2->start.U8,
+            //     tail.U8 - playback2->start.U8);
             //
             for(count = 0, dist.U8 = playback->data_buf; 
                 playback2->head.U8 != tail.U8;)
             {
-                if(playback2->head.S16 >= playback2->end.S16)
-                    playback2->head.S16 = playback2->start.S16;
-                //
-                *dist.S16++ = *playback2->head.S16;
-                *playback2->head.S16++ = 0;
-                count += 2;
+                if(playback2->head.U32 >= playback2->end.U32)
+                    playback2->head.U32 = playback2->start.U32;
+                //每次拷贝 4字节
+                *dist.U32++ = *playback2->head.U32;
+                *playback2->head.U32++ = 0;
+                count += 4;
                 //
                 if(count == playback->chunk_bytes)
                 {
@@ -803,12 +803,13 @@ SNDPCMContainer2_t *circle_play_init(void)
 
     //
 	playback2 = (SNDPCMContainer2_t *)calloc(1, sizeof(SNDPCMContainer2_t));
+    playback2->buff = (uint8_t *)calloc(DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE+4, sizeof(uint8_t));
     playback2->playback = playback;
-    playback2->head.U8 = playback2->tail.U8 = playback2->buff.U8;
-    playback2->start.U8 = playback2->buff.U8;
-    playback2->end.U8 = playback2->buff.U8 + DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE;
+    playback2->head.U8 = playback2->tail.U8 = playback2->buff;
+    playback2->start.U8 = playback2->buff;
+    playback2->end.U8 = playback2->buff + DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE;
     //
-    pthread_mutex_init(&playback2->lock, NULL);
+    // pthread_mutex_init(&playback2->lock, NULL);
     playback2->run = 1;
     pthread_create(&playback2->th_msg, NULL, (void*)circle_msg_thread, (void*)playback2);
     pthread_create(&playback2->th_paly, NULL, (void*)circle_play_thread, (void*)playback2);
@@ -839,7 +840,6 @@ void circle_play_exit(SNDPCMContainer2_t *playback2)
         pthread_join(playback2->th_paly, NULL);
         //等待各指针不再有人使用
         sleep(1);
-        pthread_mutex_lock(&playback2->lock);
         //
         if(playback2->playback)
         {
@@ -853,7 +853,7 @@ void circle_play_exit(SNDPCMContainer2_t *playback2)
             free(playback2->playback);
         }
         //
-        pthread_mutex_destroy(&playback2->lock);
+        // pthread_mutex_destroy(&playback2->lock);
         free(playback2);
     }
 }
@@ -865,48 +865,72 @@ CircleBuff_Point circle_play_load_wavStream(
     uint32_t freq,
     uint8_t channels,
     uint8_t sample,
-    CircleBuff_Point head,
-    uint8_t reduce)
+    CircleBuff_Point head)
 {
-    CircleBuff_Point pHead = head, pTail;
+    CircleBuff_Point pHead = head, pSrc = src;
+    CircleBuff_Point pTail;
+    uint8_t reduceBackground = 3, reduceSrc = 3;
+    uint8_t recover = 2;
     //
-    if(!playback2 || !playback2->run || !src.U8 || !head.U8 || len < 1)
+    if(!playback2 || !playback2->run || !pSrc.U8 || len < 1)
     {
         pHead.U8 = 0;
         return pHead;
     }
+    //
+    if(pHead.U8 == 0)
+        pHead = playback2->head;
     //---------- 参数一致 直接拷贝 -----
     if(freq == DEFAULT_CIRCLE_FREQ && 
         channels == DEFAULT_CIRCLE_CHANNELS && 
         sample == DEFAULT_CIRCLE_SAMPLE)
     {
-        //数据拷贝
-        if(pHead.U8 + len < playback2->end.U8)
+        //--- 数据拷贝 ---
+        if(pHead.U8 + len < playback2->end.U8)//数据正常写入
         {
             pTail.U8 = pHead.U8 + len;
             //
             for(;pHead.U8 <= pTail.U8;)
             {
-                *pHead.S16 = (*pHead.S16)/reduce + (*src.S16);
+                //写两次(两声道) 防止声道错位
+                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
+                *pHead.S16 *= recover;
                 pHead.S16++;
-                src.S16++;
+                pSrc.S16++;
+                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
+                *pHead.S16 *= recover;
+                pHead.S16++;
+                pSrc.S16++;
             }
         }
-        else
+        else//数据将从循环缓冲区尾部折返到头部
         {
             pTail.U8 = playback2->start.U8 + (len - (playback2->end.U8 - pHead.U8));
-            //
+            //写到尾
             for(;pHead.S16 < playback2->end.S16;)
             {
-                *pHead.S16 = (*pHead.S16)/reduce + (*src.S16);
+                //写两次(两声道) 防止声道错位
+                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
+                *pHead.S16 *= recover;
                 pHead.S16++;
-                src.S16++;
+                pSrc.S16++;
+                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
+                *pHead.S16 *= recover;
+                pHead.S16++;
+                pSrc.S16++;
             }
+            //从头部继续写
             for(pHead.U8 = playback2->start.U8; pHead.U8 <= pTail.U8;)
             {
-                *pHead.S16 = (*pHead.S16)/reduce + (*src.S16);
+                //写两次(两声道) 防止声道错位
+                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
+                *pHead.S16 *= recover;
                 pHead.S16++;
-                src.S16++;
+                pSrc.S16++;
+                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
+                *pHead.S16 *= recover;
+                pHead.S16++;
+                pSrc.S16++;
             }
         }
         //修改尾指针
@@ -935,8 +959,7 @@ CircleBuff_Point circle_play_load_wavStream(
 
 void circle_play_load_wav(
     SNDPCMContainer2_t *playback2,
-    char *wavPath,
-    uint8_t reduce)
+    char *wavPath)
 {
     int fd = 0;
     int ret = 0;
@@ -944,7 +967,8 @@ void circle_play_load_wav(
     uint32_t buffSize, buffSizeWait;
     WAVContainer_t wav;//wav文件头信息
     CircleBuff_Point src, head;
-    uint32_t tick, sum = 0, temp;
+    uint32_t tick, sum = 0, second = 0;
+    uint32_t temp;
     //
     if(!playback2 || !playback2->run || !wavPath)
         return;
@@ -961,24 +985,25 @@ void circle_play_load_wav(
 		close(fd);
         return;
 	}
-    printf("circle_play_load_wav:\n  通道数: %d\n  采样率: %d Hz\n  采样位数: %d bit\n  总数据量: %d Bytes\n", 
+    //
+    printf("%s :\n  通道数: %d\n  采样位数: %d bit\n  采样率: %d Hz\n  每秒字节: %d Bytes\n  总数据量: %d Bytes\n\n", 
+        wavPath,
         wav.format.channels,
-        wav.format.sample_rate,
         wav.format.sample_length,
+        wav.format.sample_rate,
+        wav.format.bytes_p_second,
         wav.chunk.length);
     //
     temp = DEFAULT_WAV_CACHE_BUFF_SIZE/playback2->playback->chunk_bytes;
     buffSize = playback2->playback->chunk_bytes*temp;
     buffSizeWait = playback2->playback->chunk_bytes*(temp-3);
-    // buffSize = DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE/8;
+    //
     buff = (uint8_t *)calloc(buffSize, sizeof(uint8_t));
     src.U8 = buff;
     //
     // SNDWAV_Play(playback2->playback, &wav, fd);
     //
-    pthread_mutex_lock(&playback2->lock);
-    head.U8 = playback2->head.U8;
-    pthread_mutex_unlock(&playback2->lock);
+    head.U8 = 0;
     tick = playback2->tick;
     //
     do
@@ -986,27 +1011,30 @@ void circle_play_load_wav(
         ret = read(fd, buff, buffSize);
         if(ret > 0)
         {
-            //
+            //等播放指针赶上写入进度
             if(sum > 0)
             {
                 while(get_tick_err(playback2->tick, tick) < 
                     sum - buffSizeWait)
                     usleep(10000);
             }
+            //写入的总字节数统计
             sum += ret;
-            //
+            //写入循环缓冲区
             head = circle_play_load_wavStream(
                 playback2, 
                 src, ret, 
                 wav.format.sample_rate, 
                 wav.format.channels, 
-                wav.format.sample_length, head, reduce);
+                wav.format.sample_length, head);
+            //播放时间
+            second = sum/wav.format.bytes_p_second;
             //
-            printf("upgrade tail: %ld %ld -- head: %ld  count = %d bytes\n", 
+            printf("%s : tail: %ld -- head: %ld  %d bytes  %02d:%02d\n", 
+                wavPath,
                 playback2->tail.U8 - playback2->start.U8,
-                head.U8 - playback2->start.U8,
                 playback2->head.U8 - playback2->start.U8,
-                sum);
+                sum, second/60, second%60);
             //
             if(head.U8 == 0)
                 break;
@@ -1017,6 +1045,6 @@ void circle_play_load_wav(
     if(buff)
         free(buff);
     //
-    printf("circle_play_load_wav: end\n");
+    printf("%s : end\n", wavPath);
 }
 

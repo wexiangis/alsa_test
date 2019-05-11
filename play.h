@@ -35,39 +35,31 @@ typedef struct SNDPCMContainer {
 #define DEFAULT_CIRCLE_FREQ 44100
 #define DEFAULT_CIRCLE_SAMPLE 16
 #define DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE 1048576//1M
-#define DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE16 (DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE/2)
-#define DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE32 (DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE/4)
 
 #define DEFAULT_WAV_CACHE_BUFF_SIZE 524288//512K
-
-typedef union CircleBuffType
-{
-    uint8_t U8[DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE];
-    uint16_t U16[DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE16];
-    uint32_t U32[DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE32];
-}CircleBuff_Type;
 
 typedef union CircleBuffPoint
 {
     uint8_t *U8;
     int16_t *S16;
+    int16_t *U16;
     int32_t *S32;
+    int32_t *U32;
 }CircleBuff_Point;
 
 typedef struct SNDPCMContainer2 {
     SNDPCMContainer_t *playback;
     //
-    CircleBuff_Type buff;
+    uint8_t *buff;//缓冲区
     CircleBuff_Point start, end;//缓冲区头尾指针
     CircleBuff_Point head, tail;//当前缓冲区读写指针
-    pthread_mutex_t lock;
+    // pthread_mutex_t lock;//互斥锁
     //
-    pthread_t th_paly;
-    pthread_t th_msg;
+    pthread_t th_paly;//播放指针管理线程
+    pthread_t th_msg;//接收消息线程
     //
-    uint8_t run;
-    //
-    uint32_t tick;
+    uint8_t run;//全局正常运行标志
+    uint32_t tick;//播放指针启动至今走过的字节数
 } SNDPCMContainer2_t;
 
 ///////
@@ -84,8 +76,7 @@ void circle_play_exit(SNDPCMContainer2_t *playback2);
 
 void circle_play_load_wav(
     SNDPCMContainer2_t *playback2,
-    char *wavPath,
-    uint8_t reduce);
+    char *wavPath);
 
 CircleBuff_Point circle_play_load_wavStream(
     SNDPCMContainer2_t *playback2,
@@ -94,8 +85,7 @@ CircleBuff_Point circle_play_load_wavStream(
     uint32_t freq,
     uint8_t channels,
     uint8_t sample,
-    CircleBuff_Point head,
-    uint8_t reduce);
+    CircleBuff_Point head);
 
 #endif
 
