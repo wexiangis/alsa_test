@@ -4,26 +4,17 @@
 
 #include "play.h"
 
-#define T1_WAV "./sin.wav"
-#define T2_WAV "./sin2.wav"
-
-#define TT_WAV "./test.wav"
-#define TT2_WAV "./test2.wav"
-#define TT3_WAV "./test3.wav"
-
-#define MUSIC_WAV "./music.wav"
-#define MUSIC2_WAV "./music2.wav"
-
-#define TP_WAV "./create.wav"
-#define TC_WAV "./capture.wav"
-
 #define TEST 3
 
 #if(TEST == 3)
 
+#define RECORD_WAV "./capture.wav"
+
 void fun(SNDPCMContainer2_t *playback2)
 {
-    circle_play_load_wav(playback2, MUSIC2_WAV);
+    // circle_play_load_wav(playback2, "./music.wav");
+    circle_play_load_wav(playback2, "./music2.wav");
+    // circle_play_load_wav(playback2, RECORD_WAV);
 }
 
 int main()
@@ -32,6 +23,8 @@ int main()
     pthread_t th;
 
     // sys_volume_set(10);
+
+    // record_wav(RECORD_WAV, 5);
 
     SNDPCMContainer2_t *playback2 = circle_play_init();
 
@@ -50,20 +43,25 @@ int main()
         if(scanf("%s", input) > 0)
         {
             if(input[0] == '1')
-                circle_play_load_wav(playback2, T1_WAV);
+                circle_play_load_wav(playback2, "./test.wav");
             else if(input[0] == '2')
-                circle_play_load_wav(playback2, T2_WAV);
+                circle_play_load_wav(playback2, "./test2.wav");
             else if(input[0] == '3')
-                circle_play_load_wav(playback2, TT_WAV);
-            else if(input[0] == '4')
-                circle_play_load_wav(playback2, TT2_WAV);
-            else if(input[0] == '5')
-                circle_play_load_wav(playback2, TT3_WAV);
+                circle_play_load_wav(playback2, "./test3.wav");
+
+            else if(input[0] == 's' && input[1] == '1')
+                circle_play_load_wav(playback2, "./sin.wav");
+            else if(input[0] == 's' && input[1] == '2')
+                circle_play_load_wav(playback2, "./sin2.wav");
+            else if(input[0] == 's' && input[1] == '3')
+                circle_play_load_wav(playback2, "./sin3.wav");
+            else if(input[0] == 's' && input[1] == '4')
+                circle_play_load_wav(playback2, "./sin4.wav");
 
             else if(input[0] == 'm' && input[1] == '1')
-                circle_play_load_wav(playback2, MUSIC_WAV);
+                circle_play_load_wav(playback2, "./music.wav");
             else if(input[0] == 'm' && input[1] == '2')
-                circle_play_load_wav(playback2, MUSIC2_WAV);
+                circle_play_load_wav(playback2, "./music2.wav");
 
             else if(input[0] == 'q')
                 break;

@@ -861,7 +861,7 @@ void circle_play_exit(SNDPCMContainer2_t *playback2)
 CircleBuff_Point circle_play_load_wavStream(
     SNDPCMContainer2_t *playback2,
     CircleBuff_Point src,
-    uint32_t len,
+    uint32_t srcU8Len,
     uint32_t freq,
     uint8_t channels,
     uint8_t sample,
@@ -869,34 +869,27 @@ CircleBuff_Point circle_play_load_wavStream(
 {
     CircleBuff_Point pHead = head, pSrc = src;
     CircleBuff_Point pTail;
+    //
     uint8_t reduceBackground = 3, reduceSrc = 3;
     uint8_t recover = 2;
     //
-    if(!playback2 || !playback2->run || !pSrc.U8 || len < 1)
+    if(!playback2 || !playback2->run || !pSrc.U8 || !pHead.U8 || srcU8Len < 1)
     {
         pHead.U8 = 0;
         return pHead;
     }
-    //
-    if(pHead.U8 == 0)
-        pHead = playback2->head;
-    //---------- 参数一致 直接拷贝 -----
+    //---------- 参数一致 直接拷贝 ----------
     if(freq == DEFAULT_CIRCLE_FREQ && 
         channels == DEFAULT_CIRCLE_CHANNELS && 
         sample == DEFAULT_CIRCLE_SAMPLE)
     {
         //--- 数据拷贝 ---
-        if(pHead.U8 + len < playback2->end.U8)//数据正常写入
+        if(pHead.U8 + srcU8Len < playback2->end.U8)//数据正常写入
         {
-            pTail.U8 = pHead.U8 + len;
+            pTail.U32 = pHead.U32 + srcU8Len/4 + 1;
             //
-            for(;pHead.U8 <= pTail.U8;)
+            for(;pHead.S16 < pTail.S16;)
             {
-                //写两次(两声道) 防止声道错位
-                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
-                *pHead.S16 *= recover;
-                pHead.S16++;
-                pSrc.S16++;
                 *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
                 *pHead.S16 *= recover;
                 pHead.S16++;
@@ -905,35 +898,170 @@ CircleBuff_Point circle_play_load_wavStream(
         }
         else//数据将从循环缓冲区尾部折返到头部
         {
-            pTail.U8 = playback2->start.U8 + (len - (playback2->end.U8 - pHead.U8));
+            pTail.U32 = playback2->start.U32 + (srcU8Len - (playback2->end.U8 - pHead.U8))/4 + 1;
             //写到尾
             for(;pHead.S16 < playback2->end.S16;)
             {
-                //写两次(两声道) 防止声道错位
-                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
-                *pHead.S16 *= recover;
-                pHead.S16++;
-                pSrc.S16++;
                 *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
                 *pHead.S16 *= recover;
                 pHead.S16++;
                 pSrc.S16++;
             }
             //从头部继续写
-            for(pHead.U8 = playback2->start.U8; pHead.U8 <= pTail.U8;)
+            for(pHead.S16 = playback2->start.S16; pHead.S16 < pTail.S16;)
             {
-                //写两次(两声道) 防止声道错位
-                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
-                *pHead.S16 *= recover;
-                pHead.S16++;
-                pSrc.S16++;
                 *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
                 *pHead.S16 *= recover;
                 pHead.S16++;
                 pSrc.S16++;
             }
         }
-        //修改尾指针
+    }
+    //---------- 参数不一致 插值拷贝 ----------
+    else
+    {
+        //频率不一致带来的 步差
+        int32_t freqErr = freq - DEFAULT_CIRCLE_FREQ;
+        float divCount, divPow;
+        uint32_t count;
+        //音频频率大于默认频率
+        if(freqErr > 0)
+        {
+            divPow = (float)freqErr/freq;
+            //
+            // printf("largeFreq: head = %ld , divPow = %f, divCount = %f, freqErr/%d, freq/%d\n", 
+            //     pHead.U8 - playback2->start.U8,
+            //     divPow, divCount, freqErr, freq);
+            //
+            //----- 懒得支持 减小函数入栈容量 -----
+            switch(sample)
+            {
+                case 8:
+                    if(channels == 2)
+                        ;
+                    else if(channels == 1)
+                        ;
+                    break;
+                case 16:
+                    if(channels == 2)
+                        ;
+                    else if(channels == 1)
+                        ;
+                    break;
+                case 32:
+                    if(channels == 2)
+                        ;
+                    else if(channels == 1)
+                        ;
+                    break;
+            }
+        }
+        //音频频率小于等于默认频率
+        else
+        {
+            divPow = (float)(-freqErr)/freq;
+            //
+            // printf("smallFreq: head = %ld , divPow = %f, divCount = %f, freqErr/%d, freq/%d\n", 
+            //     pHead.U8 - playback2->start.U8,
+            //     divPow, divCount, freqErr, freq);
+            //
+            //----- 这里只写了16bit采样的数据 减小函数入栈容量 -----
+            switch(sample)
+            {
+                case 8:
+                    if(channels == 2)
+                        ;
+                    else if(channels == 1)
+                        ;
+                    break;
+                case 16:
+                    if(channels == 2)
+                    {
+                        for(count = 0, divCount = 0; count < srcU8Len;)
+                        {
+                            //
+                            if(divCount >= 1.0)
+                            {
+                                //拷贝一帧数据 pSrc指针不动
+                                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
+                                *pHead.S16 *= recover;
+                                pHead.S16++;
+                                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
+                                *pHead.S16 *= recover;
+                                pHead.S16++;
+                                //
+                                divCount -= 1.0;
+                            }
+                            else
+                            {
+                                //拷贝一帧数据
+                                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
+                                *pHead.S16 *= recover;
+                                pHead.S16++;
+                                pSrc.S16++;
+                                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
+                                *pHead.S16 *= recover;
+                                pHead.S16++;
+                                pSrc.S16++;
+                                //
+                                divCount += divPow;
+                                count += 4;
+                            }
+                            //循环处理
+                            if(pHead.S16 >= playback2->end.S16)
+                                pHead.S16 = playback2->start.S16;
+                        }
+                    }
+                    else if(channels == 1)
+                    {
+                        for(count = 0, divCount = 0; count < srcU8Len;)
+                        {
+                            //
+                            if(divCount >= 1.0)
+                            {
+                                //拷贝一帧数据 pSrc指针不动
+                                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
+                                *pHead.S16 *= recover;
+                                pHead.S16++;
+                                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
+                                *pHead.S16 *= recover;
+                                pHead.S16++;
+                                //
+                                divCount -= 1.0;
+                            }
+                            else
+                            {
+                                //拷贝一帧数据
+                                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
+                                *pHead.S16 *= recover;
+                                pHead.S16++;
+                                // pSrc.S16++;
+                                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
+                                *pHead.S16 *= recover;
+                                pHead.S16++;
+                                pSrc.S16++;
+                                //
+                                divCount += divPow;
+                                count += 2;
+                            }
+                            //循环处理
+                            if(pHead.S16 >= playback2->end.S16)
+                                pHead.S16 = playback2->start.S16;
+                        }
+                    }
+                    break;
+                case 32:
+                    if(channels == 2)
+                        ;
+                    else if(channels == 1)
+                        ;
+                    break;
+            }
+        }
+    }
+    //---------- 修改尾指针 ----------
+    if(pHead.U8 != head.U8)
+    {
         if(playback2->tail.U8 < playback2->head.U8)
         {
             if(pHead.U8 < playback2->head.U8 && 
@@ -948,11 +1076,8 @@ CircleBuff_Point circle_play_load_wavStream(
                 playback2->tail.U8 = pHead.U8;
         }
     }
-    //---------- 参数不一致 插值拷贝 -----
     else
-    {
-        ;
-    }
+        pHead.U8 = 0;
     //
     return pHead;
 }
@@ -964,11 +1089,11 @@ void circle_play_load_wav(
     int fd = 0;
     int ret = 0;
     uint8_t *buff = NULL;
-    uint32_t buffSize, buffSizeWait;
+    uint32_t buffSize, buffSize2, buffSizeWait;
     WAVContainer_t wav;//wav文件头信息
     CircleBuff_Point src, head;
-    uint32_t tick, sum = 0, second = 0;
-    uint32_t temp;
+    uint32_t tick, sum = 0, sum2 = 0, second = 0;
+    uint32_t chunk_bytes, chunk_num;
     //
     if(!playback2 || !playback2->run || !wavPath)
         return;
@@ -994,16 +1119,22 @@ void circle_play_load_wav(
         wav.format.bytes_p_second,
         wav.chunk.length);
     //
-    temp = DEFAULT_WAV_CACHE_BUFF_SIZE/playback2->playback->chunk_bytes;
-    buffSize = playback2->playback->chunk_bytes*temp;
-    buffSizeWait = playback2->playback->chunk_bytes*(temp-3);
+    chunk_bytes = playback2->playback->chunk_bytes
+        *wav.format.channels/DEFAULT_CIRCLE_CHANNELS
+        *wav.format.sample_length/DEFAULT_CIRCLE_SAMPLE
+        *wav.format.sample_rate/DEFAULT_CIRCLE_FREQ;
+    chunk_num = DEFAULT_WAV_CACHE_BUFF_SIZE/playback2->playback->chunk_bytes;
+    //
+    buffSize = chunk_bytes*chunk_num;
+    buffSize2 = playback2->playback->chunk_bytes*chunk_num;
+    buffSizeWait = playback2->playback->chunk_bytes*(chunk_num-3);
     //
     buff = (uint8_t *)calloc(buffSize, sizeof(uint8_t));
-    src.U8 = buff;
     //
     // SNDWAV_Play(playback2->playback, &wav, fd);
     //
-    head.U8 = 0;
+    src.U8 = buff;
+    head.U8 = playback2->head.U8;
     tick = playback2->tick;
     //
     do
@@ -1012,14 +1143,15 @@ void circle_play_load_wav(
         if(ret > 0)
         {
             //等播放指针赶上写入进度
-            if(sum > 0)
+            if(sum2 > 0)
             {
                 while(get_tick_err(playback2->tick, tick) < 
-                    sum - buffSizeWait)
+                    sum2 - buffSizeWait)
                     usleep(10000);
             }
             //写入的总字节数统计
             sum += ret;
+            sum2 += buffSize2;
             //写入循环缓冲区
             head = circle_play_load_wavStream(
                 playback2, 

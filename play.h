@@ -7,7 +7,7 @@
 
 //默认录音参数
 #define DEFAULT_CHANNELS         (2)   //通道数(channel)：该参数为1表示单声道，2则是立体声。
-#define DEFAULT_SAMPLE_RATE      (8000)//采样率(rate)：每秒钟采样次数，该次数是针对桢而言
+#define DEFAULT_SAMPLE_RATE      (44100)//采样率(rate)：每秒钟采样次数，该次数是针对桢而言
 #define DEFAULT_SAMPLE_LENGTH    (16)  //样本长度(sample)：样本是记录音频数据最基本的单位，常见的有8位和16位。
 #define DEFAULT_DURATION_TIME    (10)  //录音时间 单位：秒
 
@@ -32,14 +32,15 @@ typedef struct SNDPCMContainer {
 #include <pthread.h>
 
 #define DEFAULT_CIRCLE_CHANNELS 2
-#define DEFAULT_CIRCLE_FREQ 44100
 #define DEFAULT_CIRCLE_SAMPLE 16
+#define DEFAULT_CIRCLE_FREQ 44100
 #define DEFAULT_CIRCLE_CIRCLE_BUFF_SIZE 1048576//1M
 
 #define DEFAULT_WAV_CACHE_BUFF_SIZE 524288//512K
 
 typedef union CircleBuffPoint
 {
+    int8_t *S8;
     uint8_t *U8;
     int16_t *S16;
     int16_t *U16;
@@ -70,8 +71,8 @@ int record_wav(char *filename,uint32_t duration_time);
 int sys_volume_set(uint8_t vol_value);
 
 ///////
-SNDPCMContainer2_t *circle_play_init(void);
 
+SNDPCMContainer2_t *circle_play_init(void);
 void circle_play_exit(SNDPCMContainer2_t *playback2);
 
 void circle_play_load_wav(
@@ -81,7 +82,7 @@ void circle_play_load_wav(
 CircleBuff_Point circle_play_load_wavStream(
     SNDPCMContainer2_t *playback2,
     CircleBuff_Point src,
-    uint32_t len,
+    uint32_t srcU8Len,
     uint32_t freq,
     uint8_t channels,
     uint8_t sample,
