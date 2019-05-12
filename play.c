@@ -456,7 +456,7 @@ int SNDWAV_P_SaveRead(int fd, void *buf, size_t count)
  ******************************************************************************/
 void SNDWAV_Play(SNDPCMContainer_t *sndpcm, WAVContainer_t *wav, int fd)
 {
-    int i = 0, bit_count = 4;
+    int i = 0, bit_count = 0;
     int16_t *valueP;
 
     int load, ret;
@@ -508,12 +508,6 @@ void SNDWAV_Play(SNDPCMContainer_t *sndpcm, WAVContainer_t *wav, int fd)
         load = load * 8 / sndpcm->bits_per_frame;
 
         ret = SNDWAV_WritePcm(sndpcm, load);
-        // ret = SNDWAV_WritePcm(sndpcm, load);
-        // ret = SNDWAV_WritePcm(sndpcm, load);
-        // ret = SNDWAV_WritePcm(sndpcm, load);
-        // ret = SNDWAV_WritePcm(sndpcm, load);
-        // ret = SNDWAV_WritePcm(sndpcm, load);
-        // ret = SNDWAV_WritePcm(sndpcm, load);
 
         if (ret != load)
             break;
@@ -630,7 +624,7 @@ int SNDWAV_SetParams2(SNDPCMContainer_t *sndpcm, uint16_t freq, uint8_t channels
     else if(sample == 32)
         format = SND_PCM_FORMAT_S32_LE;
     else
-        format = SND_PCM_FORMAT_S16_LE;
+        return -1;
     
     if (snd_pcm_hw_params_set_format(sndpcm->handle, hwparams, format) < 0) {
         fprintf(stderr, "Error snd_pcm_hw_params_set_format\n");
@@ -920,20 +914,17 @@ CircleBuff_Point circle_play_load_wavStream(
     //---------- 参数不一致 插值拷贝 ----------
     else
     {
-        //频率不一致带来的 步差
+        //频率差
         int32_t freqErr = freq - DEFAULT_CIRCLE_FREQ;
+        //步差计数 和 步差分量
         float divCount, divPow;
+        //srcU8Len 计数
         uint32_t count;
-        //音频频率大于默认频率
+        //音频频率大于默认频率 //--- 重复代码比较多且使用可能极小,为减小函数入栈容量,不写了 ---
         if(freqErr > 0)
         {
             divPow = (float)freqErr/freq;
             //
-            // printf("largeFreq: head = %ld , divPow = %f, divCount = %f, freqErr/%d, freq/%d\n", 
-            //     pHead.U8 - playback2->start.U8,
-            //     divPow, divCount, freqErr, freq);
-            //
-            //----- 懒得支持 减小函数入栈容量 -----
             switch(sample)
             {
                 case 8:
@@ -965,24 +956,25 @@ CircleBuff_Point circle_play_load_wavStream(
             //     pHead.U8 - playback2->start.U8,
             //     divPow, divCount, freqErr, freq);
             //
-            //----- 这里只写了16bit采样的数据 减小函数入栈容量 -----
             switch(sample)
             {
+                //8bit采样 //--- 重复代码比较多且使用可能极小,为减小函数入栈容量,不写了 ---
                 case 8:
                     if(channels == 2)
                         ;
                     else if(channels == 1)
                         ;
                     break;
+                //16bit采样 //主流的采样方式
                 case 16:
                     if(channels == 2)
                     {
                         for(count = 0, divCount = 0; count < srcU8Len;)
                         {
-                            //
+                            //步差计数已满 跳过帧
                             if(divCount >= 1.0)
                             {
-                                //拷贝一帧数据 pSrc指针不动
+                                //循环缓冲区指针继续移动,pSrc指针不动
                                 *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
                                 *pHead.S16 *= recover;
                                 pHead.S16++;
@@ -1050,6 +1042,7 @@ CircleBuff_Point circle_play_load_wavStream(
                         }
                     }
                     break;
+                //32bit采样 //--- 重复代码比较多且使用可能极小,为减小函数入栈容量,不写了 ---
                 case 32:
                     if(channels == 2)
                         ;
