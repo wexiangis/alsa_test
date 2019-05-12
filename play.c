@@ -1173,6 +1173,11 @@ void _circle_play_load_wav(
     printf("%s : end\n", wavPath);
 }
 
+typedef struct{
+    SNDPCMContainer2_t *playback2;
+    char *wavPath;
+}CirclePalyLoadWav_Param;
+
 void circle_play_load_wav_thread(CirclePalyLoadWav_Param *param)
 {
     _circle_play_load_wav(param->playback2, param->wavPath);
@@ -1197,7 +1202,7 @@ void circle_play_load_wav(
     //attr init
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);   //禁用线程同步, 线程运行结束后自动释放
-    //
+    //抛出线程
     pthread_create(&th, &attr, (void*)&circle_play_load_wav_thread, (void*)param);
     //attr destroy
     pthread_attr_destroy(&attr);

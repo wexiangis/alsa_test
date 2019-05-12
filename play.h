@@ -85,11 +85,6 @@ CircleBuff_Point circle_play_load_wavStream(
     uint8_t sample,
     CircleBuff_Point head);
 
-typedef struct{
-    SNDPCMContainer2_t *playback2;
-    char *wavPath;
-}CirclePalyLoadWav_Param;
-
 void circle_play_load_wav(
     SNDPCMContainer2_t *playback2,
     char *wavPath);
