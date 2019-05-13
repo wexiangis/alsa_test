@@ -793,7 +793,6 @@ SNDPCMContainer2_t *circle_play_init(void)
 	snd_pcm_dump(playback->handle, playback->log);
 
 	// SNDWAV_Play(&playback, &wav, fd);
-	// snd_pcm_drain(playback->handle);
 
     //
 	playback2 = (SNDPCMContainer2_t *)calloc(1, sizeof(SNDPCMContainer2_t));
@@ -837,6 +836,7 @@ void circle_play_exit(SNDPCMContainer2_t *playback2)
         //
         if(playback2->playback)
         {
+	        snd_pcm_drain(playback2->playback->handle);
             if(playback2->playback->data_buf)
                 free(playback2->playback->data_buf);
             if(playback2->playback->log)

@@ -8,11 +8,11 @@
 
 void fun(SNDPCMContainer2_t *playback2)
 {
+    // circle_play_load_wav(playback2, RECORD_WAV);
     // circle_play_load_wav(playback2, "./music.wav");
     // circle_play_load_wav(playback2, "./music2.wav");
     // usleep(1500);
     // circle_play_load_wav(playback2, "./music2.wav");
-    // circle_play_load_wav(playback2, RECORD_WAV);
 }
 
 int main()
@@ -20,7 +20,7 @@ int main()
     char input[16];
     pthread_t th;
 
-    // sys_volume_set(10);
+    sys_volume_set(5);
 
     // record_wav(RECORD_WAV, 5);
 

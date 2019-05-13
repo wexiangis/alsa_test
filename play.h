@@ -7,9 +7,8 @@
 
 //默认录音参数
 #define DEFAULT_CHANNELS         (2)   //通道数(channel)：该参数为1表示单声道，2则是立体声。
-#define DEFAULT_SAMPLE_RATE      (44100)//采样率(rate)：每秒钟采样次数，该次数是针对桢而言
+#define DEFAULT_SAMPLE_RATE      (8000)//采样率(rate)：每秒钟采样次数，该次数是针对桢而言
 #define DEFAULT_SAMPLE_LENGTH    (16)  //样本长度(sample)：样本是记录音频数据最基本的单位，常见的有8位和16位。
-#define DEFAULT_DURATION_TIME    (10)  //录音时间 单位：秒
 
 /*******************sndwav_common*******************************************************************/
 typedef long long off64_t;
