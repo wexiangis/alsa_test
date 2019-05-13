@@ -43,20 +43,20 @@
    it works on all WAVE-file I have
  */
 typedef struct WAVHeader {
-    uint32_t magic;     /* 'RIFF' */
-    uint32_t length;        /* filelen */
-    uint32_t type;      /* 'WAVE' */
+    uint32_t magic;     // 'RIFF'
+    uint32_t length;    // filelen
+    uint32_t type;      // 'WAVE'
 } WAVHeader_t;
 
 typedef struct WAVFmt {
-    uint32_t magic;  /* 'FMT '*/
-    uint32_t fmt_size; /* 16 or 18 */
-    uint16_t format;        /* see WAV_FMT_* */
-    uint16_t channels;
-    uint32_t sample_rate;   /* frequence of sample */
-    uint32_t bytes_p_second;
-    uint16_t blocks_align;  /* samplesize; 1 or 2 bytes */
-    uint16_t sample_length; /* 8, 12 or 16 bit */
+    uint32_t magic;  // 'FMT '
+    uint32_t fmt_size; // 16 or 18 
+    uint16_t format;   // see WAV_FMT_*
+    uint16_t channels;      // 通道数 1/单声道 2/双声道
+    uint32_t sample_rate;   // 采样频率 44100 32000 22050 16000 11025 8000 6000
+    uint32_t bytes_p_second;// 每秒字节数
+    uint16_t blocks_align;  // samplesize; 1 or 2 bytes
+    uint16_t sample_length; // 采样位宽 8, 12 or 16 bit
 } WAVFmt_t;
 
 typedef struct WAVFmtExtensible {
@@ -64,13 +64,13 @@ typedef struct WAVFmtExtensible {
     uint16_t ext_size;
     uint16_t bit_p_spl;
     uint32_t channel_mask;
-    uint16_t guid_format;   /* WAV_FMT_* */
-    uint8_t guid_tag[14];   /* WAV_GUID_TAG */
+    uint16_t guid_format;   // WAV_FMT_*
+    uint8_t guid_tag[14];   // WAV_GUID_TAG
 } WAVFmtExtensible_t;
 
 typedef struct WAVChunkHeader {
-    uint32_t type;      /* 'data' */
-    uint32_t length;        /* samplecount */
+    uint32_t type;  // 'data'
+    uint32_t length;// samplecount
 } WAVChunkHeader_t;
 
 typedef struct WAVContainer {
@@ -78,7 +78,6 @@ typedef struct WAVContainer {
     WAVFmt_t format;
     WAVChunkHeader_t chunk;
 } WAVContainer_t;
-
 
 //---------- interface ----------
 

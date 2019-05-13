@@ -10,7 +10,8 @@ INCS =
 endif
 
 target:
-	$(CC)gcc -Wall -o m main.c play.c wav.c $(LIBS) $(INCS) -lasound -lm -ldl -lpthread
+	$(CC)gcc -Wall -o wmix wmix.c wav.c $(LIBS) $(INCS) -lasound -lm -ldl -lpthread
+	$(CC)gcc -Wall -o test main.c wmix_user.c -lpthread
 
 clean:
-	@rm -rf m 
+	@rm -rf test wmix

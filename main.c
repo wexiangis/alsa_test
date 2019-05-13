@@ -1,18 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <pthread.h>
 
-#include "play.h"
+#include "wmix_user.h"
 
 #define RECORD_WAV "./capture.wav"
 
-void fun(SNDPCMContainer2_t *playback2)
+void fun(void)
 {
-    // circle_play_load_wav(playback2, RECORD_WAV);
-    // circle_play_load_wav(playback2, "./music.wav");
-    // circle_play_load_wav(playback2, "./music2.wav");
-    // usleep(1500);
-    // circle_play_load_wav(playback2, "./music2.wav");
+    // wmix_play_wav("./music.wav");
 }
 
 int main()
@@ -20,56 +17,42 @@ int main()
     char input[16];
     pthread_t th;
 
-    sys_volume_set(5);
-
-    // record_wav(RECORD_WAV, 5);
-
-    SNDPCMContainer2_t *playback2 = circle_play_init();
-
-    if(!playback2)
-    {
-        fprintf(stderr, "playback2 init err\n");
-        return -1;
-    }
-    
-    /////
-
-    pthread_create(&th, NULL, (void*)&fun, (void*)playback2);
+    pthread_create(&th, NULL, (void*)&fun, NULL);
 
     while(1)
     {
         if(scanf("%s", input) > 0)
         {
             if(input[0] == '1')
-                circle_play_load_wav(playback2, "./test.wav");
+                wmix_play_wav("./test.wav");
             else if(input[0] == '2')
-                circle_play_load_wav(playback2, "./test2.wav");
+                wmix_play_wav("./test2.wav");
             else if(input[0] == '3')
-                circle_play_load_wav(playback2, "./test3.wav");
+                wmix_play_wav("./test3.wav");
 
             else if(input[0] == 's' && input[1] == '1')
-                circle_play_load_wav(playback2, "./sin.wav");
+                wmix_play_wav("./sin.wav");
             else if(input[0] == 's' && input[1] == '2')
-                circle_play_load_wav(playback2, "./sin2.wav");
+                wmix_play_wav("./sin2.wav");
             else if(input[0] == 's' && input[1] == '3')
-                circle_play_load_wav(playback2, "./sin3.wav");
+                wmix_play_wav("./sin3.wav");
             else if(input[0] == 's' && input[1] == '4')
-                circle_play_load_wav(playback2, "./sin4.wav");
+                wmix_play_wav("./sin4.wav");
 
             else if(input[0] == 'm' && input[1] == '1')
-                circle_play_load_wav(playback2, "./music.wav");
+                wmix_play_wav("./music.wav");
             else if(input[0] == 'm' && input[1] == '2')
-                circle_play_load_wav(playback2, "./music2.wav");
+                wmix_play_wav("./music2.wav");
+            
+            //设置音量
+            else if(input[0] == 'v')
+                wmix_set_volume(input[1] - '0', 10);
 
             else if(input[0] == 'q')
                 break;
         }
         usleep(10000);
     }
-
-    /////
-
-    circle_play_exit(playback2);
-
+    //
     return 0;
 }
