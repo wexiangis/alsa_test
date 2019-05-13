@@ -1,11 +1,11 @@
 
-#include <sys/stat.h>
 #include <unistd.h>
+#include <errno.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
+#include <sys/stat.h>
 
 #include "wmix.h"
-#include "wmix_user.h"
 #include "wav.h"
 
 /*******************************************************************************
@@ -37,7 +37,7 @@ long sys_volume_set(uint8_t count, uint8_t div)
        return -1;
     //
     snd_mixer_selem_get_playback_volume(pcm_element,SND_MIXER_SCHN_FRONT_LEFT,&volume_value);//获取音量
-    printf("sys_volume_set: %ld / %ld\r\n", volume_value, volume_div);
+    printf("volume: %ld / %ld\r\n", volume_value, volume_div);
     //处理事件
     snd_mixer_handle_events(mixer);
     snd_mixer_close(mixer);
@@ -325,7 +325,7 @@ int SNDWAV_PrepareWAVParams(WAVContainer_t *wav,uint32_t duration_time)
  ******************************************************************************/
 void SNDWAV_Record(SNDPCMContainer_t *sndpcm, WAVContainer_t *wav, int fd)
 {
-    off64_t rest;
+    int64_t rest;
     size_t c, frame_size;
 
     if (WAV_WriteHeader(fd, wav) < 0) {
@@ -334,7 +334,7 @@ void SNDWAV_Record(SNDPCMContainer_t *sndpcm, WAVContainer_t *wav, int fd)
 
     rest = wav->chunk.length;
     while (rest > 0) {
-        c = (rest <= (off64_t)sndpcm->chunk_bytes) ? (size_t)rest : sndpcm->chunk_bytes;
+        c = (rest <= (int64_t)sndpcm->chunk_bytes) ? (size_t)rest : sndpcm->chunk_bytes;
         frame_size = c * 8 / sndpcm->bits_per_frame;
         if (SNDWAV_ReadPcm(sndpcm, frame_size) != frame_size)
             break;
@@ -452,9 +452,9 @@ void SNDWAV_Play(SNDPCMContainer_t *sndpcm, WAVContainer_t *wav, int fd)
     int16_t *valueP;
 
     int load, ret;
-    off64_t written = 0;
-    off64_t c;
-    off64_t count = LE_INT(wav->chunk.length);
+    int64_t written = 0;
+    int64_t c;
+    int64_t count = LE_INT(wav->chunk.length);
 
     load = 0;
     while (written < count)
@@ -695,27 +695,84 @@ int SNDWAV_SetParams2(SNDPCMContainer_t *sndpcm, uint16_t freq, uint8_t channels
     return 0;
 }
 
-void wmix_fifo_thread(WMix_Msg *msg)
+typedef struct{
+    WMix_Struct *wmix;
+    uint8_t *param;
+}WMixStream_Param;
+
+void wmix_stream_thread(WMixStream_Param *wsp)
 {
-    
+    uint8_t chn = wsp->param[0];
+    uint8_t sample = wsp->param[1];
+    uint16_t freq = (wsp->param[2]<<8) | wsp->param[3];
     //
-    free(msg);
+    WMix_Msg msg;
+    ssize_t ret;
+    key_t msg_key;
+    int msg_fd;
+    //
+    WMix_Point src, head;
+    //
+    printf("wmix_stream_thread: chn: %d, sample: %d bit, freq: %d Hz, path: %s\n",
+        chn, sample, freq, (char*)&wsp->param[4]);
+    //获得管道
+    if((msg_key = ftok((char*)&wsp->param[4], WMIX_MSG_ID)) == -1){
+        fprintf(stderr, "wmix_stream_thread: ftok err\n");
+        return;
+    }
+    //重新创建队列
+    if((msg_fd = msgget(msg_key, 0666)) == -1){
+        fprintf(stderr, "wmix_stream_thread: msgget err\n");
+        return;
+    }
+    //
+    src.U8 = msg.value;
+    head.U8 = 0;
+    //
+    while(wsp->wmix->run)
+    {
+        memset(&msg, 0, sizeof(WMix_Msg));
+        ret = msgrcv(msg_fd, &msg, sizeof(WMix_Msg), 0, IPC_NOWAIT);//返回队列中的第一个消息 非阻塞方式
+        if(ret > 0)
+        {
+            head = wmix_load_wavStream(wsp->wmix, src, msg.type, freq, chn, sample, head);
+            if(head.U8 == 0)
+                break;
+            continue;
+        }
+        else
+        {
+            if(errno == ENOMSG)
+                ;
+            else
+                break;
+        }
+        usleep(10000);
+    }
+    //
+    printf("wmix_stream_thread (%s) exit\n", (char*)&wsp->param[4]);
+    //删除目录
+    rmdir((char*)&wsp->param[4]);
+    //
+    free(wsp->param);
+    free(wsp);
 }
 
-void wmix_fifo(WMix_Msg msg)
+void wmix_load_stream(WMix_Struct *wmix, uint8_t *value)
 {
-    WMix_Msg *param;
+    WMixStream_Param *wsp;
     pthread_t th;
     pthread_attr_t attr;
-    //
-    param = (WMix_Msg*)calloc(1, sizeof(WMix_Msg));
     //参数拷贝
-    memcpy(param, &msg, sizeof(WMix_Msg));
+    wsp = (WMixStream_Param*)calloc(1, sizeof(WMixStream_Param));
+    wsp->wmix = wmix;
+    wsp->param = (uint8_t*)calloc(WMIX_MSG_BUFF_SIZE, sizeof(uint8_t));
+    memcpy(wsp->param, value, WMIX_MSG_BUFF_SIZE);
     //attr init
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);   //禁用线程同步, 线程运行结束后自动释放
     //抛出线程
-    pthread_create(&th, &attr, (void*)&wmix_fifo_thread, (void*)param);
+    pthread_create(&th, &attr, (void*)&wmix_stream_thread, (void*)wsp);
     //attr destroy
     pthread_attr_destroy(&attr);
 }
@@ -730,29 +787,26 @@ void wmix_msg_thread(WMix_Struct *wmix)
         mkdir("/tmp", 0666);
     if(access(WMIX_MSG_PATH, F_OK) != 0)
         mkdir(WMIX_MSG_PATH, 0666);
-    
     //再次检查
     if(access(WMIX_MSG_PATH, F_OK) != 0){
         fprintf(stderr, "wmix_msg_thread: msg path not found\n");
         return;
     }
-
+    //清空文件夹
+    system(WMIX_MSG_PATH_CLEAR);
     //获得管道
     if((wmix->msg_key = ftok(WMIX_MSG_PATH, WMIX_MSG_ID)) == -1){
         fprintf(stderr, "wmix_msg_thread: ftok err\n");
         return;
     }
-
     //清空队列
     if((wmix->msg_fd = msgget(wmix->msg_key, 0666)) != -1)
         msgctl(wmix->msg_fd, IPC_RMID, NULL);
-
     //重新创建队列
     if((wmix->msg_fd = msgget(wmix->msg_key, IPC_CREAT|0666)) == -1){
         fprintf(stderr, "wmix_msg_thread: msgget err\n");
         return;
     }
-
     //接收来信
     while(wmix->run)
     {
@@ -766,18 +820,16 @@ void wmix_msg_thread(WMix_Struct *wmix)
             //播放wav
             else if(msg.type == 2)
                 wmix_load_wav(wmix, (char*)msg.value);
-            //fifo
-            else
-                wmix_fifo(msg);
+            //播放stream
+            else if(msg.type == 3)
+                wmix_load_stream(wmix, msg.value);
             //
             continue;
         }
         usleep(10000);
     }
-
     //清空队列
     msgctl(wmix->msg_fd, IPC_RMID, NULL);
-
     //
     printf("wmix_msg_thread exit\n");
 }
@@ -1224,11 +1276,12 @@ void _wmix_load_wav(
             //播放时间
             second = sum/wav.format.bytes_p_second;
             //
-            printf("%s : tail: %ld -- head: %ld  %d bytes  %02d:%02d\n", 
-                wavPath,
-                wmix->tail.U8 - wmix->start.U8,
-                wmix->head.U8 - wmix->start.U8,
-                sum, second/60, second%60);
+            // printf("%s : tail: %ld -- head: %ld  %d bytes  %02d:%02d\n", 
+            //     wavPath,
+            //     wmix->tail.U8 - wmix->start.U8,
+            //     wmix->head.U8 - wmix->start.U8,
+            //     sum, second/60, second%60);
+            printf("%s : %02d:%02d\n", wavPath, second/60, second%60);
             //
             if(head.U8 == 0)
                 break;
@@ -1245,9 +1298,9 @@ void _wmix_load_wav(
 typedef struct{
     WMix_Struct *wmix;
     char *wavPath;
-}CirclePalyLoadWav_Param;
+}WMixLoadWav_Param;
 
-void wmix_load_wav_thread(CirclePalyLoadWav_Param *param)
+void wmix_load_wav_thread(WMixLoadWav_Param *param)
 {
     _wmix_load_wav(param->wmix, param->wavPath);
     if(param->wavPath)
@@ -1259,11 +1312,11 @@ void wmix_load_wav(
     WMix_Struct *wmix,
     char *wavPath)
 {
-    CirclePalyLoadWav_Param *param;
+    WMixLoadWav_Param *param;
     pthread_t th;
     pthread_attr_t attr;
     //
-    param = (CirclePalyLoadWav_Param*)calloc(1, sizeof(CirclePalyLoadWav_Param));
+    param = (WMixLoadWav_Param*)calloc(1, sizeof(WMixLoadWav_Param));
     //参数拷贝
     param->wmix = wmix;
     param->wavPath = (char*)calloc(strlen(wavPath)+1, sizeof(char));

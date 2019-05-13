@@ -14,6 +14,7 @@ void fun(void)
 
 int main()
 {
+    int msg_fd;
     char input[16];
     pthread_t th;
 
@@ -44,6 +45,11 @@ int main()
             else if(input[0] == 'm' && input[1] == '2')
                 wmix_play_wav("./music2.wav");
             
+            else if(input[0] == 't' && input[1] == '1')
+                msg_fd = wmix_stream_open(2, 16, 44100);
+            else if(input[0] == 't' && input[1] == '2')
+                wmix_stream_close(msg_fd);
+
             //设置音量
             else if(input[0] == 'v')
                 wmix_set_volume(input[1] - '0', 10);

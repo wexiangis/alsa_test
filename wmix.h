@@ -10,9 +10,6 @@
 #define DEFAULT_SAMPLE_RATE      (8000)//采样率(rate)：每秒钟采样次数，该次数是针对桢而言
 #define DEFAULT_SAMPLE_LENGTH    (16)  //样本长度(sample)：样本是记录音频数据最基本的单位，常见的有8位和16位。
 
-/*******************sndwav_common*******************************************************************/
-typedef long long off64_t;
-
 typedef struct SNDPCMContainer {
     snd_pcm_t *handle;
     snd_output_t *log;
@@ -33,6 +30,7 @@ typedef struct SNDPCMContainer {
 #include <sys/ipc.h>
 
 #define WMIX_MSG_PATH "/tmp/wmix"
+#define WMIX_MSG_PATH_CLEAR "rm -rf /tmp/wmix/*"
 #define WMIX_MSG_ID   'w'
 #define WMIX_MSG_BUFF_SIZE 2048
 
