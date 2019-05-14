@@ -101,11 +101,11 @@ int SNDWAV_ReadPcm(SNDPCMContainer_t *sndpcm, size_t rcount)
             snd_pcm_wait(sndpcm->handle, 1000);
         } else if (r == -EPIPE) {
             snd_pcm_prepare(sndpcm->handle);
-            fprintf(stderr, "<<<<<<<<<<<<<<< Buffer Underrun >>>>>>>>>>>>>>>\n");
+            fprintf(stderr, "Error: Buffer Underrun\n");
         } else if (r == -ESTRPIPE) {
-            fprintf(stderr, "<<<<<<<<<<<<<<< Need suspend >>>>>>>>>>>>>>>\n");
+            fprintf(stderr, "Error: Need suspend\n");
         } else if (r < 0) {
-            fprintf(stderr, "Error snd_pcm_writei: [%s]", snd_strerror(r));
+            fprintf(stderr, "Error: snd_pcm_writei: [%s]\n", snd_strerror(r));
             return -1;
         }
 
@@ -677,7 +677,7 @@ int SNDWAV_SetParams2(SNDPCMContainer_t *sndpcm, uint16_t freq, uint8_t channels
     sndpcm->bits_per_frame = sndpcm->bits_per_sample * channels;
     sndpcm->chunk_bytes = sndpcm->chunk_size * sndpcm->bits_per_frame / 8;
 
-    printf("\n---- Wav Mix info -----\n  通道数: %d\n  采样率: %d Hz\n  采样位数: %d bit\n  总数据量: -- Bytes\n"
+    printf("\n---- WMix info -----\n  通道数: %d\n  采样率: %d Hz\n  采样位数: %d bit\n  总数据量: -- Bytes\n"
         "  每次写入帧数: %ld\n  每帧字节数: %ld Bytes\n  每次读写字节数: %ld Bytes\n  缓冲区大小: %ld Bytes\n\n", 
         channels, freq, sample,
         sndpcm->chunk_size,
@@ -702,58 +702,79 @@ typedef struct{
 
 void wmix_stream_thread(WMixStream_Param *wsp)
 {
+    int fd_read = ((wsp->param[4]<<24)&0xFF)|((wsp->param[5]<<16)&0xFF)|((wsp->param[6]<<8)&0xFF)|wsp->param[7];
+    char *path = (char*)&wsp->param[8];
+    //
     uint8_t chn = wsp->param[0];
     uint8_t sample = wsp->param[1];
     uint16_t freq = (wsp->param[2]<<8) | wsp->param[3];
     //
-    WMix_Msg msg;
+    uint8_t *buff;
+    uint32_t buffSize;
+    //
+    // WMix_Point src, head;
     ssize_t ret;
-    key_t msg_key;
-    int msg_fd;
     //
-    WMix_Point src, head;
+    // WMix_Msg msg;
+    // key_t msg_key;
+    // int msg_fd;
+    // //获得管道
+    // if((msg_key = ftok(path, WMIX_MSG_ID)) == -1){
+    //     fprintf(stderr, "wmix_stream_thread: ftok err\n");
+    //     return;
+    // }
+    // //重新创建队列
+    // if((msg_fd = msgget(msg_key, 0666)) == -1){
+    //     fprintf(stderr, "wmix_stream_thread: msgget err\n");
+    //     return;
+    // }
     //
-    printf("wmix_stream_thread: chn: %d, sample: %d bit, freq: %d Hz, path: %s\n",
-        chn, sample, freq, (char*)&wsp->param[4]);
-    //获得管道
-    if((msg_key = ftok((char*)&wsp->param[4], WMIX_MSG_ID)) == -1){
-        fprintf(stderr, "wmix_stream_thread: ftok err\n");
-        return;
-    }
-    //重新创建队列
-    if((msg_fd = msgget(msg_key, 0666)) == -1){
-        fprintf(stderr, "wmix_stream_thread: msgget err\n");
-        return;
-    }
+    buffSize = chn*sample/8*freq;
+    buff = (uint8_t*)calloc(buffSize, sizeof(uint8_t));
+    // src.U8 = buff;
+    // head.U8 = 0;
     //
-    src.U8 = msg.value;
-    head.U8 = 0;
+    printf("wmix_stream_thread: chn: %d, sample: %d bit, freq: %d Hz, buffSize: %d, path: %s, fd_read: %d\n ",
+        chn, sample, freq, buffSize, path, fd_read);
     //
     while(wsp->wmix->run)
     {
-        memset(&msg, 0, sizeof(WMix_Msg));
-        ret = msgrcv(msg_fd, &msg, sizeof(WMix_Msg), 0, IPC_NOWAIT);//返回队列中的第一个消息 非阻塞方式
+        // memset(&msg, 0, sizeof(WMix_Msg));
+        // ret = msgrcv(msg_fd, &msg, sizeof(WMix_Msg), 0, IPC_NOWAIT);//返回队列中的第一个消息 非阻塞方式
+        // if(ret < 0)
+        // {
+        //     if(errno == ENOMSG)
+        //         ;
+        //     else
+        //         break;
+        // }
+        ret = read(fd_read, buff, buffSize);
         if(ret > 0)
         {
-            head = wmix_load_wavStream(wsp->wmix, src, msg.type, freq, chn, sample, head);
-            if(head.U8 == 0)
-                break;
+            // head = wmix_load_wavStream(
+            //     wsp->wmix, 
+            //     src, ret, freq, chn, sample, head);
+            // if(head.U8 == 0)
+            //     break;
+            printf("fifo read: %ld\n", ret);
             continue;
         }
+        // else if(errno == EAGAIN)
+        //     ;
         else
-        {
-            if(errno == ENOMSG)
-                ;
-            else
-                break;
-        }
-        usleep(10000);
+            printf("errno: %d\n", errno);
+        //
+        // usleep(10000);
+        sleep(1);
     }
     //
-    printf("wmix_stream_thread (%s) exit\n", (char*)&wsp->param[4]);
-    //删除目录
-    rmdir((char*)&wsp->param[4]);
+    printf("wmix_stream_thread (%s) exit\n", path);
     //
+    close(fd_read);
+    //删除文件
+    remove(path);
+    //
+    free(buff);
     free(wsp->param);
     free(wsp);
 }
@@ -783,8 +804,6 @@ void wmix_msg_thread(WMix_Struct *wmix)
     ssize_t ret;
 
     //路径检查 //F_OK 是否存在 R_OK 是否有读权限 W_OK 是否有写权限 X_OK 是否有执行权限
-    if(access("/tmp", F_OK) != 0)
-        mkdir("/tmp", 0666);
     if(access(WMIX_MSG_PATH, F_OK) != 0)
         mkdir(WMIX_MSG_PATH, 0666);
     //再次检查
@@ -828,7 +847,7 @@ void wmix_msg_thread(WMix_Struct *wmix)
         }
         usleep(10000);
     }
-    //清空队列
+    //删除队列
     msgctl(wmix->msg_fd, IPC_RMID, NULL);
     //
     printf("wmix_msg_thread exit\n");

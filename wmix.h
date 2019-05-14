@@ -29,13 +29,13 @@ typedef struct SNDPCMContainer {
 #include <pthread.h>
 #include <sys/ipc.h>
 
-#define WMIX_MSG_PATH "/tmp/wmix"
-#define WMIX_MSG_PATH_CLEAR "rm -rf /tmp/wmix/*"
+#define WMIX_MSG_PATH "/var/tmp/wmix"
+#define WMIX_MSG_PATH_CLEAR "rm -rf /var/tmp/wmix/*"
 #define WMIX_MSG_ID   'w'
-#define WMIX_MSG_BUFF_SIZE 2048
+#define WMIX_MSG_BUFF_SIZE 128
 
 typedef struct{
-    long type;// 0/设置音量 1/播放wav文件 其它/传递fifo路径,且type=chn<<24|sample<<16|freq
+    long type;// 1/设置音量 2/播放wav文件 3/stream
     uint8_t value[WMIX_MSG_BUFF_SIZE];
 }WMix_Msg;
 

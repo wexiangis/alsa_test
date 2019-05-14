@@ -1,18 +1,22 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
-#include <time.h>
 
-#define WMIX_MSG_PATH "/tmp/wmix"
+#include "wmix_user.h"
+
+#define WMIX_MSG_PATH "/var/tmp/wmix"
 #define WMIX_MSG_ID   'w'
-#define WMIX_MSG_BUFF_SIZE 2048
+#define WMIX_MSG_BUFF_SIZE 128
 
 typedef struct{
-    long type;// 1/设置音量 2/播放wav文件 其它/传递fifo路径,且type=chn<<24|sample<<16|freq
+    long type;// 1/设置音量 2/播放wav文件 3/stream
     uint8_t value[WMIX_MSG_BUFF_SIZE];
 }WMix_Msg;
 
@@ -67,79 +71,103 @@ char *wmix_auto_path(char *buff, int pid, uint8_t id)
     return buff;
 }
 
-int wmix_stream_open(
+WMix_Stream *wmix_stream_init(
     uint8_t channels,
     uint8_t sample,
     uint16_t freq)
 {
     static uint8_t id = 0;
-    char *path;
     //
     if(!freq || !channels || !sample)
-        return 0;
+        return NULL;
     //
+    int fd_read;
+    char *path;
     WMix_Msg msg;
-    memset(&msg, 0, sizeof(WMix_Msg));
+    WMix_Stream *stream = NULL;
     //msg初始化
-    key_t msg_key, msg_key_s;
-    int msg_fd, msg_fd_s = 0;
+    key_t msg_key;
+    int msg_fd;
+    // key_t msg_key_s;
     //
     if((msg_key = ftok(WMIX_MSG_PATH, WMIX_MSG_ID)) == -1){
-        fprintf(stderr, "wmix_stream_open: ftok err\n");\
+        fprintf(stderr, "wmix_stream_init: ftok err\n");
         return 0;
     }
     if((msg_fd = msgget(msg_key, 0666)) == -1){
-        fprintf(stderr, "wmix_stream_open: msgget err\n");
+        fprintf(stderr, "wmix_stream_init: msgget err\n");
         return 0;
     }
     //路径创建
-    path = wmix_auto_path((char*)&msg.value[4], getpid(), id++);
-    if(access(path, F_OK) != 0)
-        mkdir(path, 0666);
+    memset(&msg, 0, sizeof(WMix_Msg));
+    path = wmix_auto_path((char*)&msg.value[8], getpid(), id++);
     //
-    if((msg_key_s = ftok(path, WMIX_MSG_ID)) == -1){
-        fprintf(stderr, "wmix_stream_open: ftok2 err\n");
-        return 0;
+    if (mkfifo(path, 0666) < 0 && errno != EEXIST)
+    {
+        printf("wmix_stream_init2: create fifo failed...\n");
+        return NULL;
     }
-    if((msg_fd_s = msgget(msg_key_s, IPC_CREAT|0666)) == -1){
-        fprintf(stderr, "wmix_stream_open: msgget2 err\n");
-        return 0;
-    }
+    //
+    stream = (WMix_Stream *)calloc(1, sizeof(WMix_Stream));
+    //
+    // if((msg_key_s = ftok(path, WMIX_MSG_ID)) == -1){
+    //     fprintf(stderr, "wmix_stream_init: ftok2 err\n");
+    //     return 0;
+    // }
+    // if((stream->msg_fd = msgget(msg_key_s, IPC_CREAT|0666)) == -1){
+    //     fprintf(stderr, "wmix_stream_init: msgget2 err\n");
+    //     return 0;
+    // }
     //装填 message
     msg.type = 3;
     msg.value[0] = channels;
     msg.value[1] = sample;
     msg.value[2] = (freq>>8)&0xFF;
     msg.value[3] = freq&0xFF;
+    //
+    fd_read = open(path, O_RDONLY | O_NONBLOCK);
+    stream->fd_write = open(path, O_WRONLY | O_NONBLOCK);
+    //
+    msg.value[4] = (fd_read>>24)&0xFF;
+    msg.value[5] = (fd_read>>16)&0xFF;
+    msg.value[6] = (fd_read>>8)&0xFF;
+    msg.value[7] = fd_read&0xFF;
     //发出
     msgsnd(msg_fd, &msg, sizeof(WMix_Msg), IPC_NOWAIT);
     //
-    return msg_fd_s;
+    printf("wmix_stream_init: path: %s fd_read: %d\n", path, fd_read);
+    //
+    return stream;
 }
 
-uint16_t wmix_stream_transfer(int msg_fd, uint8_t *stream, uint16_t len)
+int wmix_stream_transfer(WMix_Stream *stream, uint8_t *data, int len)
 {
-    uint16_t ret = 0;
-    if(!msg_fd || !stream || len < 1)
-        return 0;
-    //装填 message
-    WMix_Msg msg;
-    memset(&msg, 0, sizeof(WMix_Msg));
+    int ret = 0;
     //
-    if(len > WMIX_MSG_BUFF_SIZE)
-        ret = WMIX_MSG_BUFF_SIZE;
-    else
-        ret = len;
-    msg.type = ret;
-    memcpy(msg.value, stream, ret);
-    //发出
-    msgsnd(msg_fd, &msg, sizeof(WMix_Msg), IPC_NOWAIT);
+    if(!stream || !data || len < 1)
+        return 0;
+    //
+    ret = write(stream->fd_write, data, len);
+    //
+    // if(ret > 0)
+    // {
+    //     //装填 message
+    //     WMix_Msg msg;
+    //     //
+    //     msg.type = ret;
+    //     //发出
+    //     msgsnd(stream->msg_fd, &msg, sizeof(WMix_Msg), IPC_NOWAIT);
+    // }
     //
     return ret;
 }
 
-void wmix_stream_close(int msg_fd)
+void wmix_stream_release(WMix_Stream *stream)
 {
-    if(msg_fd)
-        msgctl(msg_fd, IPC_RMID, NULL);
+    if(stream)
+    {
+        close(stream->fd_write);
+        // msgctl(stream->msg_fd, IPC_RMID, NULL);
+        free(stream);
+    }
 }
