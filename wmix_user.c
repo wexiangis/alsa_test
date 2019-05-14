@@ -82,7 +82,7 @@ int wmix_stream_open(
     if(!freq || !channels || !sample)
         return 0;
     //
-    int fd = 0;
+    int fd;
     int timeout;
     char *path;
     WMix_Msg msg;
@@ -101,6 +101,7 @@ int wmix_stream_open(
     //路径创建
     memset(&msg, 0, sizeof(WMix_Msg));
     path = wmix_auto_path((char*)&msg.value[4], getpid(), id++);
+    // remove(path);
     //装填 message
     msg.type = 3;
     msg.value[0] = channels;
@@ -122,7 +123,10 @@ int wmix_stream_open(
         return 0;
     }
     //
-    fd = open(path, O_WRONLY);
+    if(fork() == 0)
+        open(path, O_RDONLY | O_NONBLOCK);//防止下面的写阻塞打不开
+    else
+        fd = open(path, O_WRONLY);
     //
     return fd;
 }
