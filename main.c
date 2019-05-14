@@ -16,36 +16,39 @@ void fun(void)
     // wmix_play_wav("./music.wav");
 
     int fd;
-    int ret;
-    uint8_t buff[2048];
-    WMix_Stream *stream = wmix_stream_init(2, 16, 44100);
-    if(stream)
+    size_t ret, total = 0;
+    uint8_t buff[4096];
+    int stream = wmix_stream_open(2, 16, 44100);
+    if(stream > 0)
     {
         fd = open("./music.wav", O_RDONLY);
         if(fd > 0)
         {
+            //跳过文件头
+            read(fd, buff, 44);
+            //
             while(1)
             {
-                ret = read(fd, buff, 2048);
+                ret = read(fd, buff, 4096);
                 if(ret > 0)
-                    wmix_stream_transfer(stream, buff, ret);
+                    write(stream, buff, ret);
                 else
                     break;
-                usleep(1000);
+                total += ret;
             }
             //
             close(fd);
         }
         //
-        sleep(3);
+        close(stream);
         //
-        wmix_stream_release(stream);
+        printf("wav write end: %ld\n", total);
     }
 }
 
 int main()
 {
-    WMix_Stream *stream = NULL;
+    int fd = 0;
     char input[16];
     pthread_t th;
 
@@ -81,9 +84,12 @@ int main()
                 pthread_create(&th, NULL, (void*)&fun, NULL);
             
             else if(input[0] == 't' && input[1] == '1')
-                stream = wmix_stream_init(2, 16, 44100);
+                fd = wmix_stream_open(2, 16, 44100);
             else if(input[0] == 't' && input[1] == '2')
-                wmix_stream_release(stream);
+            {
+                close(fd);
+                fd = 0;
+            }
 
             //设置音量
             else if(input[0] == 'v' && input[1] == '1' && input[2] == '0')
