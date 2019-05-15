@@ -74,40 +74,58 @@ char *wmix_auto_path(char *buff, int pid, uint8_t id)
     return buff;
 }
 
-//自动命名: 主路径WMIX_MSG_PATH + wav + pid
-char *wmix_auto_path2(char *buff, int pid)
+//自动命名: 主路径WMIX_MSG_PATH + wav + pid + 0~255
+char *wmix_auto_path2(char *buff, int pid, uint8_t id)
 {
-    sprintf(buff, "%s/wav-%05d", WMIX_MSG_PATH, pid);
+    sprintf(buff, "%s/wav-%05d%03d", WMIX_MSG_PATH, pid, id);
     return buff;
 }
 
 void wmix_play_wav2(char *wavPath)
 {
+    static uint8_t id_w = 0;
+    uint8_t id_f, id_max = 5;// id_max 用于提高容错率,防止打断失败
     char msgPath[128] = {0};
     WMix_Msg msg;
     key_t msg_key;
     int msg_fd;
+    int timeout;
     //
-    wmix_auto_path2(msgPath, getpid());
-    //关闭旧的播放线程
-    if(access(msgPath, F_OK) == 0)
+    for(id_f = 0; id_f < id_max; id_f++)
     {
-        if((msg_key = ftok(msgPath, WMIX_MSG_ID)) == -1){
-            fprintf(stderr, "wmix_stream_init: ftok err\n");
-            return;
+        wmix_auto_path2(msgPath, getpid(), id_f);
+        //关闭旧的播放线程
+        if(access(msgPath, F_OK) == 0)
+        {
+            if((msg_key = ftok(msgPath, WMIX_MSG_ID)) == -1){
+                fprintf(stderr, "wmix_stream_init: ftok err\n");
+                return;
+            }
+            if((msg_fd = msgget(msg_key, 0666)) == -1){
+                fprintf(stderr, "wmix_stream_init: msgget err\n");
+                return;
+            }
+            msgctl(msg_fd, IPC_RMID, NULL);
+            //等待关闭
+            timeout = 20;//200ms超时
+            do{
+                if(timeout-- == 0)
+                    break;
+                usleep(10000);
+            }while(access(msgPath, F_OK) == 0);
+            //
+            remove(msgPath);
         }
-        if((msg_fd = msgget(msg_key, 0666)) == -1){
-            fprintf(stderr, "wmix_stream_init: msgget err\n");
-            return;
-        }
-        msgctl(msg_fd, IPC_RMID, NULL);
-        remove(msgPath);
     }
     //wavPath == NULL 时关闭播放
     if(wavPath)
     {
+        wmix_auto_path2(msgPath, getpid(), id_w++);
+        if(id_w >= id_max)
+            id_w = 0;
+        //
         if(strlen(msgPath) + strlen(wavPath) + 2 > WMIX_MSG_BUFF_SIZE){
-            fprintf(stderr, "wmix_play_wav: wavPath > max len (%ld)\n", WMIX_MSG_BUFF_SIZE - strlen(msgPath) - 2);
+            fprintf(stderr, "wmix_play_wav: wavPath > max len (%ld)\n", (long)(WMIX_MSG_BUFF_SIZE-strlen(msgPath)-2));
             return;
         }
         //
@@ -127,6 +145,13 @@ void wmix_play_wav2(char *wavPath)
         strcpy((char*)&msg.value[strlen(wavPath)+1], msgPath);
         //发出
         msgsnd(msg_fd, &msg, sizeof(WMix_Msg), IPC_NOWAIT);
+        //等待启动
+        timeout = 20;//200ms超时
+        do{
+            if(timeout-- == 0)
+                break;
+            usleep(10000);
+        }while(access(msgPath, F_OK) != 0);
     }
 }
 

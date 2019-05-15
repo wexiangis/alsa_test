@@ -12,14 +12,15 @@
 void fun(void)
 {
     int fd;
-    size_t ret, total = 0;
+    ssize_t ret, total = 0;
     uint8_t buff[4096];
 
-    int stream = wmix_stream_open(2, 16, 44100);
-
+    // int stream = wmix_stream_open(2, 16, 44100);
+    int stream = wmix_stream_open(1, 16, 22050);
     if(stream > 0)
     {
-        fd = open("./music.wav", O_RDONLY);
+        // fd = open("./music.wav", O_RDONLY);
+        fd = open("./music2.wav", O_RDONLY);
         if(fd > 0)
         {
             //跳过文件头
@@ -40,7 +41,7 @@ void fun(void)
         //
         close(stream);
         //
-        printf("wav write end: %ld\n", total);
+        printf("wav write end: %ld\n", (long)total);
     }
 }
 

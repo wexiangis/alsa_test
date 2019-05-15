@@ -738,7 +738,8 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
     //
     WMix_Point src, head;
     ssize_t ret, total = 0;
-    uint32_t tick, second = 0, bytes_p_second;
+    double total2 = 0, buffSizePow;
+    uint32_t tick, second = 0, bytes_p_second, bytes_p_second2;
     //
     if (mkfifo(path, 0666) < 0 && errno != EEXIST)
     {
@@ -748,13 +749,16 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
     //
     fd_read = open(path, O_RDONLY);
     //
-    buffSize = chn*sample/8*freq;
+    bytes_p_second = chn*sample/8*freq;
+    buffSize = bytes_p_second;
     buff = (uint8_t*)calloc(buffSize, sizeof(uint8_t));
     //
-    printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n\n", 
-        path, chn, sample, freq, buffSize);
+    bytes_p_second2 = WMIX_CHANNELS*WMIX_SAMPLE/8*WMIX_FREQ;
+    buffSizePow = (double)bytes_p_second2/bytes_p_second;
     //
-    bytes_p_second = chn*sample/8*freq;
+    printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n\n", 
+        path, chn, sample, freq, bytes_p_second);
+    //
     src.U8 = buff;
     tick = wmtp->wmix->tick;
     head.U8 = wmtp->wmix->head.U8;
@@ -765,10 +769,10 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
         if(ret > 0)
         {
             //等播放指针赶上写入进度
-            if(total > wmtp->wmix->playback->chunk_bytes)
+            if(total2 > wmtp->wmix->playback->chunk_bytes)
             {
                 while(get_tick_err(wmtp->wmix->tick, tick) < 
-                    total - wmtp->wmix->playback->chunk_bytes)
+                    total2 - wmtp->wmix->playback->chunk_bytes)
                     usleep(10000);
             }
             //
@@ -779,6 +783,7 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
                 break;
             //
             total += ret;
+            total2 += ret*buffSizePow;
             //播放时间
             second = total/bytes_p_second;
             //
@@ -1343,7 +1348,6 @@ void wmix_load_wav2(
     WAVContainer_t wav;//wav文件头信息
     WMix_Point src, head;
     uint32_t tick, sum = 0, sum2 = 0, second = 0;
-    uint32_t chunk_bytes, chunk_num;
     //
     WMix_Msg msg;
     key_t msg_key;
@@ -1372,16 +1376,10 @@ void wmix_load_wav2(
         wav.format.bytes_p_second,
         wav.chunk.length,
         msgPath);
-    //把每帧数据控制在半秒 让打断更灵敏
-    chunk_bytes = wmix->playback->chunk_bytes
-        *wav.format.channels/WMIX_CHANNELS
-        *wav.format.sample_length/WMIX_SAMPLE
-        *wav.format.sample_rate/WMIX_FREQ;
-    chunk_num = 3;//WMIX_CACHE_BUFF_SIZE/wmix->playback->chunk_bytes;
-    //
-    buffSize = chunk_bytes*chunk_num;
-    buffSize2 = wmix->playback->chunk_bytes*chunk_num;
-    buffSizeWait = wmix->playback->chunk_bytes*(chunk_num-2);
+    //把每帧数据控制在1/3秒 让打断更灵敏
+    buffSize = wav.format.bytes_p_second/3;
+    buffSize2 = WMIX_CHANNELS*WMIX_SAMPLE/8*WMIX_FREQ/3;
+    buffSizeWait = buffSize2/2;
     //
     buff = (uint8_t *)calloc(buffSize, sizeof(uint8_t));
     //
