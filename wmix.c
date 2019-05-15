@@ -1308,7 +1308,6 @@ void wmix_load_wav(
     WAVContainer_t wav;//wav文件头信息
     WMix_Point src, head;
     uint32_t tick, sum = 0, sum2 = 0, second = 0;
-    uint32_t chunk_bytes, chunk_num;
     //
     if(!wmix || !wmix->run || !wavPath)
         return;
@@ -1333,15 +1332,9 @@ void wmix_load_wav(
         wav.format.bytes_p_second,
         wav.chunk.length);
     //
-    chunk_bytes = wmix->playback->chunk_bytes
-        *wav.format.channels/WMIX_CHANNELS
-        *wav.format.sample_length/WMIX_SAMPLE
-        *wav.format.sample_rate/WMIX_FREQ;
-    chunk_num = WMIX_CACHE_BUFF_SIZE/wmix->playback->chunk_bytes;
-    //
-    buffSize = chunk_bytes*chunk_num;
-    buffSize2 = wmix->playback->chunk_bytes*chunk_num;
-    buffSizeWait = wmix->playback->chunk_bytes*(chunk_num-3);
+    buffSize = wav.format.bytes_p_second;
+    buffSize2 = WMIX_CHANNELS*WMIX_SAMPLE/8*WMIX_FREQ;
+    buffSizeWait = buffSize2/2;
     //
     buff = (uint8_t *)calloc(buffSize, sizeof(uint8_t));
     //
@@ -1357,7 +1350,7 @@ void wmix_load_wav(
         if(ret > 0)
         {
             //等播放指针赶上写入进度
-            if(sum2 > 0)
+            if(sum2 > buffSizeWait)
             {
                 while(wmix->run && 
                     get_tick_err(wmix->tick, tick) < sum2 - buffSizeWait)
@@ -1435,9 +1428,24 @@ void wmix_load_wav2(
         wav.format.bytes_p_second,
         wav.chunk.length,
         msgPath);
-    //把每帧数据控制在1/3秒 让打断更灵敏
-    buffSize = wav.format.bytes_p_second/3;
-    buffSize2 = WMIX_CHANNELS*WMIX_SAMPLE/8*WMIX_FREQ/3;
+    //
+    buffSize = wav.format.bytes_p_second;
+    buffSize2 = WMIX_CHANNELS*WMIX_SAMPLE/8*WMIX_FREQ;
+    //把每秒数据包拆得越细, 打断速度越快
+    //以下拆包的倍数必须能同时被 wav.format.sample_rate 和 WMIX_FREQ 整除 !!
+    if(wav.format.sample_rate%4 == 0)
+    {
+        buffSize /= 4;
+        buffSize2 /= 4;
+    }else if(wav.format.sample_rate%3 == 0)
+    {
+        buffSize /= 3;
+        buffSize2 /= 3;
+    }else if(wav.format.sample_rate%2 == 0)
+    {
+        buffSize /= 2;
+        buffSize2 /= 2;
+    }
     buffSizeWait = buffSize2/2;
     //
     buff = (uint8_t *)calloc(buffSize, sizeof(uint8_t));
@@ -1475,7 +1483,7 @@ void wmix_load_wav2(
         if(ret > 0)
         {
             //等播放指针赶上写入进度
-            if(sum2 > 0)
+            if(sum2 > buffSizeWait)
             {
                 while(wmix->run && 
                     get_tick_err(wmix->tick, tick) < 

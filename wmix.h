@@ -44,8 +44,6 @@ typedef struct{
 #define WMIX_FREQ 44100
 //循环缓冲区大小
 #define WMIX_BUFF_SIZE 524288//512K //1048576//1M
-//载入wav时的缓冲区大小
-#define WMIX_CACHE_BUFF_SIZE 262400//256K //524288//512K
 
 typedef union
 {
