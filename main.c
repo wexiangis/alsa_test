@@ -68,6 +68,8 @@ int main()
                     wmix_play_wav("./test2.wav");
                 else if(input[0] == '3')
                     wmix_play_wav("./test3.wav");
+                else if(input[0] == '0')
+                    wmix_play_wav("./capture.wav");
 
                 else if(input[0] == 'm' && input[1] == '1')
                     wmix_play_wav("./music.wav");
@@ -82,6 +84,8 @@ int main()
                     wmix_play_wav2("./test2.wav");
                 else if(input[0] == '3')
                     wmix_play_wav2("./test3.wav");
+                else if(input[0] == '0')
+                    wmix_play_wav2("./capture.wav");
 
                 else if(input[0] == 'm' && input[1] == '1')
                     wmix_play_wav2("./music.wav");

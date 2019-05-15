@@ -102,8 +102,9 @@ void wmix_play_wav2(char *wavPath)
                 return;
             }
             if((msg_fd = msgget(msg_key, 0666)) == -1){
-                fprintf(stderr, "wmix_stream_init: msgget err\n");
-                return;
+                // fprintf(stderr, "wmix_stream_init: msgget err\n");
+                remove(msgPath);
+                continue;
             }
             msgctl(msg_fd, IPC_RMID, NULL);
             //等待关闭
