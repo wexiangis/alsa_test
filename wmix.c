@@ -895,14 +895,19 @@ void wmix_msg_thread(WMixThread_Param *wmtp)
             else if(msg.type == 4)
                 wmix_throwOut_thread(wmix, msg.value, WMIX_MSG_BUFF_SIZE, &wmix_load_wav2_thread);
             //复位
-            else if(msg.type == 5)
-            {
+            else if(msg.type == 5){
                 wmix->run = 0;
                 break;
             }
-            //
             continue;
         }
+        //在别的地方重开了该程序的副本
+        else if(ret < 1 && errno != ENOMSG)
+        {
+            fprintf(stderr, "wmix_msg_thread: process exist\n");
+            exit(0);
+        }
+        //
         usleep(10000);
     }
     //删除队列
