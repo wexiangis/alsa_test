@@ -16,7 +16,7 @@
 #define WMIX_MSG_BUFF_SIZE 128
 
 typedef struct{
-    long type;// 1/设置音量 2/播放wav文件 3/stream 4/互斥播放
+    long type;// 1/设置音量 2/播放wav文件 3/stream 4/互斥播放 5/复位
     uint8_t value[WMIX_MSG_BUFF_SIZE];
 }WMix_Msg;
 
@@ -29,6 +29,17 @@ if((msg_key = ftok(WMIX_MSG_PATH, WMIX_MSG_ID)) == -1){\
 }if((msg_fd = msgget(msg_key, 0666)) == -1){\
     fprintf(stderr, "wmix_play_wav: msgget err\n");\
     return;\
+}
+
+void wmix_reset(void)
+{
+    WMix_Msg msg;
+    //msg初始化
+    MSG_INIT();
+    //装填 message
+    msg.type = 5;
+    //发出
+    msgsnd(msg_fd, &msg, WMIX_MSG_BUFF_SIZE, IPC_NOWAIT);
 }
 
 void wmix_set_volume(uint8_t count, uint8_t div)
@@ -45,7 +56,7 @@ void wmix_set_volume(uint8_t count, uint8_t div)
         msg.value[0] = count;
     msg.value[1] = div;
     //发出
-    msgsnd(msg_fd, &msg, sizeof(WMix_Msg), IPC_NOWAIT);
+    msgsnd(msg_fd, &msg, WMIX_MSG_BUFF_SIZE, IPC_NOWAIT);
 }
 
 void wmix_play_wav(char *wavPath)
@@ -64,7 +75,7 @@ void wmix_play_wav(char *wavPath)
     }
     strcpy((char*)msg.value, wavPath);
     //发出
-    msgsnd(msg_fd, &msg, sizeof(WMix_Msg), IPC_NOWAIT);
+    msgsnd(msg_fd, &msg, WMIX_MSG_BUFF_SIZE, IPC_NOWAIT);
 }
 
 //自动命名: 主路径WMIX_MSG_PATH + fifo + pid + 0~255
@@ -145,7 +156,7 @@ void wmix_play_wav2(char *wavPath)
         strcpy((char*)msg.value, wavPath);
         strcpy((char*)&msg.value[strlen(wavPath)+1], msgPath);
         //发出
-        msgsnd(msg_fd, &msg, sizeof(WMix_Msg), IPC_NOWAIT);
+        msgsnd(msg_fd, &msg, WMIX_MSG_BUFF_SIZE, IPC_NOWAIT);
         //等待启动
         timeout = 20;//200ms超时
         do{
@@ -193,7 +204,7 @@ int wmix_stream_open(
     msg.value[2] = (freq>>8)&0xFF;
     msg.value[3] = freq&0xFF;
     //发出
-    msgsnd(msg_fd, &msg, sizeof(WMix_Msg), IPC_NOWAIT);
+    msgsnd(msg_fd, &msg, WMIX_MSG_BUFF_SIZE, IPC_NOWAIT);
     //等待路径创建
     timeout = 10;//100ms超时
     do{

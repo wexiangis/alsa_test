@@ -20,4 +20,7 @@ int wmix_stream_open(
     uint8_t sample,
     uint16_t freq);
 
+//复位
+void wmix_reset(void);
+
 #endif

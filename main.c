@@ -117,6 +117,10 @@ int main()
             else if(input[0] == 's')
                 mode = !mode;
 
+            //复位
+            else if(input[0] == 'r')
+                wmix_reset();
+
             //退出
             else if(input[0] == 'q')
                 break;

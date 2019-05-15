@@ -35,7 +35,7 @@ typedef struct SNDPCMContainer {
 #define WMIX_MSG_BUFF_SIZE 128
 
 typedef struct{
-    long type;// 1/设置音量 2/播放wav文件 3/stream
+    long type;// 1/设置音量 2/播放wav文件 3/stream 4/互斥播放 5/复位
     uint8_t value[WMIX_MSG_BUFF_SIZE];
 }WMix_Msg;
 
@@ -70,6 +70,7 @@ typedef struct{
     //
     uint8_t run;//全局正常运行标志
     uint32_t tick;//播放指针启动至今走过的字节数
+    uint32_t thread_count;//线程计数 增加线程时+1 减少时-1 等于0时全部退出
     //
     key_t msg_key;
     int msg_fd;

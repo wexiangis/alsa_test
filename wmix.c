@@ -762,6 +762,8 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
     src.U8 = buff;
     tick = wmtp->wmix->tick;
     head.U8 = wmtp->wmix->head.U8;
+    //线程计数
+    wmtp->wmix->thread_count += 1;
     //
     while(wmtp->wmix->run)
     {
@@ -771,7 +773,8 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
             //等播放指针赶上写入进度
             if(total2 > wmtp->wmix->playback->chunk_bytes)
             {
-                while(get_tick_err(wmtp->wmix->tick, tick) < 
+                while(wmtp->wmix->run && 
+                    get_tick_err(wmtp->wmix->tick, tick) < 
                     total2 - wmtp->wmix->playback->chunk_bytes)
                     usleep(10000);
             }
@@ -801,6 +804,8 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
     close(fd_read);
     //删除文件
     remove(path);
+    //线程计数
+    wmtp->wmix->thread_count -= 1;
     //
     free(buff);
     free(wmtp);
@@ -808,13 +813,21 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
 
 void wmix_load_wav_thread(WMixThread_Param *wmtp)
 {
+    //线程计数
+    wmtp->wmix->thread_count += 1;
     wmix_load_wav(wmtp->wmix, (char*)wmtp->param);
+    //线程计数
+    wmtp->wmix->thread_count -= 1;
     free(wmtp);
 }
 
 void wmix_load_wav2_thread(WMixThread_Param *wmtp)
 {
+    //线程计数
+    wmtp->wmix->thread_count += 1;
     wmix_load_wav2(wmtp->wmix, (char*)wmtp->param, (char*)&wmtp->param[strlen((char*)wmtp->param)+1]);
+    //线程计数
+    wmtp->wmix->thread_count -= 1;
     free(wmtp);
 }
 
@@ -846,11 +859,13 @@ void wmix_msg_thread(WMix_Struct *wmix)
         fprintf(stderr, "wmix_msg_thread: msgget err\n");
         return;
     }
+    //线程计数
+    wmix->thread_count += 1;
     //接收来信
     while(wmix->run)
     {
         memset(&msg, 0, sizeof(WMix_Msg));
-        ret = msgrcv(wmix->msg_fd, &msg, sizeof(WMix_Msg), 0, IPC_NOWAIT);//返回队列中的第一个消息 非阻塞方式
+        ret = msgrcv(wmix->msg_fd, &msg, WMIX_MSG_BUFF_SIZE, 0, IPC_NOWAIT);//返回队列中的第一个消息 非阻塞方式
         if(ret > 0)
         {
             //音量设置
@@ -865,6 +880,12 @@ void wmix_msg_thread(WMix_Struct *wmix)
             //播放wav (互斥播放)
             else if(msg.type == 4)
                 wmix_throwOut_thread(wmix, msg.value, WMIX_MSG_BUFF_SIZE, &wmix_load_wav2_thread);
+            //复位
+            else if(msg.type == 5)
+            {
+                wmix->run = 0;
+                break;
+            }
             //
             continue;
         }
@@ -874,6 +895,8 @@ void wmix_msg_thread(WMix_Struct *wmix)
     msgctl(wmix->msg_fd, IPC_RMID, NULL);
     //
     printf("wmix_msg_thread exit\n");
+    //线程计数
+    wmix->thread_count -= 1;
 }
 
 void wmix_play_thread(WMix_Struct *wmix)
@@ -881,6 +904,8 @@ void wmix_play_thread(WMix_Struct *wmix)
     WMix_Point tail, dist;
     uint32_t count, divVal = WMIX_SAMPLE*WMIX_CHANNELS/8;
     SNDPCMContainer_t *playback = wmix->playback;
+    //线程计数
+    wmix->thread_count += 1;
     //
     while(wmix->run)
     {
@@ -925,6 +950,8 @@ void wmix_play_thread(WMix_Struct *wmix)
     }
     //
     printf("wmix_play_thread exit\n");
+    //线程计数
+    wmix->thread_count -= 1;
 }
 
 WMix_Struct *wmix_init(void)
@@ -988,6 +1015,7 @@ Err:
 
 void wmix_exit(WMix_Struct *wmix)
 {
+    int timeout;
     if(wmix)
     {
         wmix->run = 0;
@@ -995,7 +1023,12 @@ void wmix_exit(WMix_Struct *wmix)
         pthread_join(wmix->th_msg, NULL);
         pthread_join(wmix->th_paly, NULL);
         //等待各指针不再有人使用
-        sleep(1);
+        timeout = 200;//2秒超时
+        do{
+            if(timeout-- < 1)
+                break;
+            usleep(10000);
+        }while(wmix->thread_count > 0);
         //
         if(wmix->playback)
         {
@@ -1300,8 +1333,8 @@ void wmix_load_wav(
             //等播放指针赶上写入进度
             if(sum2 > 0)
             {
-                while(get_tick_err(wmix->tick, tick) < 
-                    sum2 - buffSizeWait)
+                while(wmix->run && 
+                    get_tick_err(wmix->tick, tick) < sum2 - buffSizeWait)
                     usleep(10000);
             }
             //写入的总字节数统计
@@ -1405,7 +1438,7 @@ void wmix_load_wav2(
     do
     {
         //msg 检查
-        ret = msgrcv(msg_fd, &msg, sizeof(WMix_Msg), 0, IPC_NOWAIT);//返回队列中的第一个消息 非阻塞方式
+        ret = msgrcv(msg_fd, &msg, WMIX_MSG_BUFF_SIZE, 0, IPC_NOWAIT);//返回队列中的第一个消息 非阻塞方式
         if(ret < 1 && errno != ENOMSG) //消息队列被关闭
         {
             remove(msgPath);
@@ -1418,7 +1451,8 @@ void wmix_load_wav2(
             //等播放指针赶上写入进度
             if(sum2 > 0)
             {
-                while(get_tick_err(wmix->tick, tick) < 
+                while(wmix->run && 
+                    get_tick_err(wmix->tick, tick) < 
                     sum2 - buffSizeWait)
                     usleep(10000);
             }
@@ -1458,10 +1492,17 @@ void wmix_load_wav2(
 int main(int argc, char **argv)
 {
     WMix_Struct *wmix = wmix_init();
-    if(wmix)
-    {
-        pthread_join(wmix->th_msg, NULL);
-        pthread_join(wmix->th_paly, NULL);
+    if(wmix){
+        sleep(1);
+        while(1){
+            //--- 重启 ---
+            if(wmix->run == 0 && wmix->thread_count == 0){
+                wmix->run = 1;
+                pthread_create(&wmix->th_msg, NULL, (void*)wmix_msg_thread, (void*)wmix);
+                pthread_create(&wmix->th_paly, NULL, (void*)wmix_play_thread, (void*)wmix);
+            }
+            usleep(100000);
+        }
         wmix_exit(wmix);
     }
     return 0;
