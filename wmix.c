@@ -698,7 +698,7 @@ int SNDWAV_SetParams2(SNDPCMContainer_t *sndpcm, uint16_t freq, uint8_t channels
 
 typedef struct{
     WMix_Struct *wmix;
-    uint8_t param[WMIX_MSG_BUFF_SIZE];
+    uint8_t *param;
 }WMixThread_Param;
 
 void wmix_throwOut_thread(
@@ -712,9 +712,13 @@ void wmix_throwOut_thread(
     pthread_attr_t attr;
     //
     wmtp = (WMixThread_Param*)calloc(1, sizeof(WMixThread_Param));
-    //参数拷贝
     wmtp->wmix = wmix;
-    memcpy(wmtp->param, param, paramLen);
+    if(paramLen > 0 && param)
+    {
+        wmtp->param = (uint8_t*)calloc(paramLen, sizeof(uint8_t));
+        memcpy(wmtp->param, param, paramLen);
+    }else
+        wmtp->param = NULL;
     //attr init
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);   //禁用线程同步, 线程运行结束后自动释放
@@ -804,10 +808,13 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
     close(fd_read);
     //删除文件
     remove(path);
+    //
+    free(buff);
     //线程计数
     wmtp->wmix->thread_count -= 1;
     //
-    free(buff);
+    if(wmtp->param)
+        free(wmtp->param);
     free(wmtp);
 }
 
@@ -818,6 +825,9 @@ void wmix_load_wav_thread(WMixThread_Param *wmtp)
     wmix_load_wav(wmtp->wmix, (char*)wmtp->param);
     //线程计数
     wmtp->wmix->thread_count -= 1;
+    //
+    if(wmtp->param)
+        free(wmtp->param);
     free(wmtp);
 }
 
@@ -828,11 +838,15 @@ void wmix_load_wav2_thread(WMixThread_Param *wmtp)
     wmix_load_wav2(wmtp->wmix, (char*)wmtp->param, (char*)&wmtp->param[strlen((char*)wmtp->param)+1]);
     //线程计数
     wmtp->wmix->thread_count -= 1;
+    //
+    if(wmtp->param)
+        free(wmtp->param);
     free(wmtp);
 }
 
-void wmix_msg_thread(WMix_Struct *wmix)
+void wmix_msg_thread(WMixThread_Param *wmtp)
 {
+    WMix_Struct *wmix = wmtp->wmix;
     WMix_Msg msg;
     ssize_t ret;
 
@@ -897,13 +911,18 @@ void wmix_msg_thread(WMix_Struct *wmix)
     printf("wmix_msg_thread exit\n");
     //线程计数
     wmix->thread_count -= 1;
+    //
+    if(wmtp->param)
+        free(wmtp->param);
+    free(wmtp);
 }
 
-void wmix_play_thread(WMix_Struct *wmix)
+void wmix_play_thread(WMixThread_Param *wmtp)
 {
+    WMix_Struct *wmix = wmtp->wmix;
     WMix_Point tail, dist;
     uint32_t count, divVal = WMIX_SAMPLE*WMIX_CHANNELS/8;
-    SNDPCMContainer_t *playback = wmix->playback;
+    SNDPCMContainer_t *playback = wmtp->wmix->playback;
     //线程计数
     wmix->thread_count += 1;
     //
@@ -952,6 +971,10 @@ void wmix_play_thread(WMix_Struct *wmix)
     printf("wmix_play_thread exit\n");
     //线程计数
     wmix->thread_count -= 1;
+    //
+    if(wmtp->param)
+        free(wmtp->param);
+    free(wmtp);
 }
 
 WMix_Struct *wmix_init(void)
@@ -994,8 +1017,8 @@ WMix_Struct *wmix_init(void)
     //
     // pthread_mutex_init(&wmix->lock, NULL);
     wmix->run = 1;
-    pthread_create(&wmix->th_msg, NULL, (void*)wmix_msg_thread, (void*)wmix);
-    pthread_create(&wmix->th_paly, NULL, (void*)wmix_play_thread, (void*)wmix);
+    wmix_throwOut_thread(wmix, NULL, 0, &wmix_msg_thread);
+    wmix_throwOut_thread(wmix, NULL, 0, &wmix_play_thread);
     //
 	return wmix;
 
@@ -1020,8 +1043,6 @@ void wmix_exit(WMix_Struct *wmix)
     {
         wmix->run = 0;
         //等待线程关闭
-        pthread_join(wmix->th_msg, NULL);
-        pthread_join(wmix->th_paly, NULL);
         //等待各指针不再有人使用
         timeout = 200;//2秒超时
         do{
@@ -1498,8 +1519,8 @@ int main(int argc, char **argv)
             //--- 重启 ---
             if(wmix->run == 0 && wmix->thread_count == 0){
                 wmix->run = 1;
-                pthread_create(&wmix->th_msg, NULL, (void*)wmix_msg_thread, (void*)wmix);
-                pthread_create(&wmix->th_paly, NULL, (void*)wmix_play_thread, (void*)wmix);
+                wmix_throwOut_thread(wmix, NULL, 0, &wmix_msg_thread);
+                wmix_throwOut_thread(wmix, NULL, 0, &wmix_play_thread);
             }
             usleep(100000);
         }

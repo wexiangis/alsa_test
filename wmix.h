@@ -65,9 +65,6 @@ typedef struct{
     WMix_Point head, tail;//当前缓冲区读写指针
     // pthread_mutex_t lock;//互斥锁
     //
-    pthread_t th_paly;//播放指针管理线程
-    pthread_t th_msg;//接收消息线程
-    //
     uint8_t run;//全局正常运行标志
     uint32_t tick;//播放指针启动至今走过的字节数
     uint32_t thread_count;//线程计数 增加线程时+1 减少时-1 等于0时全部退出
@@ -92,8 +89,10 @@ int record_wav(char *filename,uint32_t duration_time);
 
 //初始化
 WMix_Struct *wmix_init(void);
+
 //关闭
 void wmix_exit(WMix_Struct *wmix);
+
 //载入音频数据 的方式播放
 WMix_Point wmix_load_wavStream(
     WMix_Struct *wmix,
@@ -103,10 +102,13 @@ WMix_Point wmix_load_wavStream(
     uint8_t channels,
     uint8_t sample,
     WMix_Point head);
+
 //指定wav文件 的方式播放
 void wmix_load_wav(
     WMix_Struct *wmix,
     char *wavPath);
+
+//指定wav文件 的方式播放 (msgPath被关闭时停止)
 void wmix_load_wav2(
     WMix_Struct *wmix,
     char *wavPath,
