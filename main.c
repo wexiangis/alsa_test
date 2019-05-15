@@ -9,16 +9,14 @@
 
 #include "wmix_user.h"
 
-#define RECORD_WAV "./capture.wav"
-
 void fun(void)
 {
-    // wmix_play_wav("./music.wav");
-
     int fd;
     size_t ret, total = 0;
     uint8_t buff[4096];
+
     int stream = wmix_stream_open(2, 16, 44100);
+
     if(stream > 0)
     {
         fd = open("./music.wav", O_RDONLY);
@@ -48,6 +46,7 @@ void fun(void)
 
 int main()
 {
+    int mode = 0;
     int fd = 0;
     char input[16];
     pthread_t th;
@@ -59,30 +58,42 @@ int main()
         memset(input, 0, sizeof(input));
         if(scanf("%s", input) > 0)
         {
-            if(input[0] == '1')
-                wmix_play_wav("./test.wav");
-            else if(input[0] == '2')
-                wmix_play_wav("./test2.wav");
-            else if(input[0] == '3')
-                wmix_play_wav("./test3.wav");
+            //wav 播放
+            if(mode == 0)
+            {
+                if(input[0] == '1')
+                    wmix_play_wav("./test.wav");
+                else if(input[0] == '2')
+                    wmix_play_wav("./test2.wav");
+                else if(input[0] == '3')
+                    wmix_play_wav("./test3.wav");
 
-            else if(input[0] == 's' && input[1] == '1')
-                wmix_play_wav("./sin.wav");
-            else if(input[0] == 's' && input[1] == '2')
-                wmix_play_wav("./sin2.wav");
-            else if(input[0] == 's' && input[1] == '3')
-                wmix_play_wav("./sin3.wav");
-            else if(input[0] == 's' && input[1] == '4')
-                wmix_play_wav("./sin4.wav");
+                else if(input[0] == 'm' && input[1] == '1')
+                    wmix_play_wav("./music.wav");
+                else if(input[0] == 'm' && input[1] == '2')
+                    wmix_play_wav("./music2.wav");
+            }
+            else
+            {
+                if(input[0] == '1')
+                    wmix_play_wav2("./test.wav");
+                else if(input[0] == '2')
+                    wmix_play_wav2("./test2.wav");
+                else if(input[0] == '3')
+                    wmix_play_wav2("./test3.wav");
 
-            else if(input[0] == 'm' && input[1] == '1')
-                wmix_play_wav("./music.wav");
-            else if(input[0] == 'm' && input[1] == '2')
-                wmix_play_wav("./music2.wav");
+                else if(input[0] == 'm' && input[1] == '1')
+                    wmix_play_wav2("./music.wav");
+                else if(input[0] == 'm' && input[1] == '2')
+                    wmix_play_wav2("./music2.wav");
+
+                else if(input[0] == 'c')
+                    wmix_play_wav2(NULL);
+            }
             
-            else if(input[0] == 't' && input[1] == 0)
+            //数据流 播放
+            if(input[0] == 't' && input[1] == 0)
                 pthread_create(&th, NULL, (void*)&fun, NULL);
-            
             else if(input[0] == 't' && input[1] == '1')
                 fd = wmix_stream_open(2, 16, 44100);
             else if(input[0] == 't' && input[1] == '2')
@@ -97,6 +108,11 @@ int main()
             else if(input[0] == 'v')
                 wmix_set_volume(input[1] - '0', 10);
 
+            //模式切换
+            else if(input[0] == 's')
+                mode = !mode;
+
+            //退出
             else if(input[0] == 'q')
                 break;
         }

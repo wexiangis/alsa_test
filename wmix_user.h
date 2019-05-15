@@ -7,10 +7,14 @@
 //count: 音量  div: 分度
 void wmix_set_volume(uint8_t count, uint8_t div);
 
-//播放 wav 文件
+//播放wav文件
 void wmix_play_wav(char *wavPath);
 
-//成功返回fifo的(只写)fd  失败返回0
+//播放wav文件 (互斥播放, wavPath=NULL时强制关闭播放)
+void wmix_play_wav2(char *wavPath);
+
+//播放音频流,用于播放录音
+//成功返回fd(fifo的写入端)  失败返回0
 int wmix_stream_open(
     uint8_t channels,
     uint8_t sample,

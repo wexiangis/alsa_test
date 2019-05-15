@@ -102,10 +102,14 @@ WMix_Point wmix_load_wavStream(
     uint8_t channels,
     uint8_t sample,
     WMix_Point head);
-//载入wav文件 的方式播放
+//指定wav文件 的方式播放
 void wmix_load_wav(
     WMix_Struct *wmix,
     char *wavPath);
+void wmix_load_wav2(
+    WMix_Struct *wmix,
+    char *wavPath,
+    char *msgPath);
 
 #endif
 

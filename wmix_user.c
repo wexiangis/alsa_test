@@ -16,7 +16,7 @@
 #define WMIX_MSG_BUFF_SIZE 128
 
 typedef struct{
-    long type;// 1/设置音量 2/播放wav文件 3/stream
+    long type;// 1/设置音量 2/播放wav文件 3/stream 4/互斥播放
     uint8_t value[WMIX_MSG_BUFF_SIZE];
 }WMix_Msg;
 
@@ -50,6 +50,8 @@ void wmix_set_volume(uint8_t count, uint8_t div)
 
 void wmix_play_wav(char *wavPath)
 {
+    if(!wavPath)
+        return;
     WMix_Msg msg;
     //msg初始化
     MSG_INIT();
@@ -70,6 +72,62 @@ char *wmix_auto_path(char *buff, int pid, uint8_t id)
 {
     sprintf(buff, "%s/fifo-%05d%03d", WMIX_MSG_PATH, pid, id);
     return buff;
+}
+
+//自动命名: 主路径WMIX_MSG_PATH + wav + pid
+char *wmix_auto_path2(char *buff, int pid)
+{
+    sprintf(buff, "%s/wav-%05d", WMIX_MSG_PATH, pid);
+    return buff;
+}
+
+void wmix_play_wav2(char *wavPath)
+{
+    char msgPath[128] = {0};
+    WMix_Msg msg;
+    key_t msg_key;
+    int msg_fd;
+    //
+    wmix_auto_path2(msgPath, getpid());
+    //关闭旧的播放线程
+    if(access(msgPath, F_OK) == 0)
+    {
+        if((msg_key = ftok(msgPath, WMIX_MSG_ID)) == -1){
+            fprintf(stderr, "wmix_stream_init: ftok err\n");
+            return;
+        }
+        if((msg_fd = msgget(msg_key, 0666)) == -1){
+            fprintf(stderr, "wmix_stream_init: msgget err\n");
+            return;
+        }
+        msgctl(msg_fd, IPC_RMID, NULL);
+        remove(msgPath);
+    }
+    //wavPath == NULL 时关闭播放
+    if(wavPath)
+    {
+        if(strlen(msgPath) + strlen(wavPath) + 2 > WMIX_MSG_BUFF_SIZE){
+            fprintf(stderr, "wmix_play_wav: wavPath > max len (%ld)\n", WMIX_MSG_BUFF_SIZE - strlen(msgPath) - 2);
+            return;
+        }
+        //
+        if((msg_key = ftok(WMIX_MSG_PATH, WMIX_MSG_ID)) == -1){
+            fprintf(stderr, "wmix_stream_init: ftok err\n");
+            return;
+        }
+        if((msg_fd = msgget(msg_key, 0666)) == -1){
+            fprintf(stderr, "wmix_stream_init: msgget err\n");
+            return;
+        }
+        //装填 message
+        memset(&msg, 0, sizeof(WMix_Msg));
+        msg.type = 4;
+        //wav路径 + msg路径 
+        strcpy((char*)msg.value, wavPath);
+        strcpy((char*)&msg.value[strlen(wavPath)+1], msgPath);
+        //发出
+        msgsnd(msg_fd, &msg, sizeof(WMix_Msg), IPC_NOWAIT);
+    }
 }
 
 int wmix_stream_open(
@@ -111,7 +169,7 @@ int wmix_stream_open(
     //发出
     msgsnd(msg_fd, &msg, sizeof(WMix_Msg), IPC_NOWAIT);
     //等待路径创建
-    timeout = 20;//200ms超时
+    timeout = 10;//100ms超时
     do{
         if(timeout-- == 0)
             break;
