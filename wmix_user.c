@@ -11,7 +11,7 @@
 
 #include "wmix_user.h"
 
-#define WMIX_MSG_PATH "/var/tmp/wmix"
+#define WMIX_MSG_PATH "/tmp/wmix"
 #define WMIX_MSG_ID   'w'
 #define WMIX_MSG_BUFF_SIZE 128
 
@@ -117,6 +117,7 @@ void wmix_play_wav2(char *wavPath)
                 remove(msgPath);
                 continue;
             }
+            //通知关闭
             msgctl(msg_fd, IPC_RMID, NULL);
             //等待关闭
             timeout = 20;//200ms超时

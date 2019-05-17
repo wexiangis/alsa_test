@@ -14,7 +14,6 @@ void fun(void)
     int fd;
     ssize_t ret, total = 0;
     uint8_t buff[4096];
-
     // int stream = wmix_stream_open(2, 16, 44100);
     int stream = wmix_stream_open(1, 16, 22050);
     if(stream > 0)

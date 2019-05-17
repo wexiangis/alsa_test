@@ -852,7 +852,7 @@ void wmix_msg_thread(WMixThread_Param *wmtp)
 
     //路径检查 //F_OK 是否存在 R_OK 是否有读权限 W_OK 是否有写权限 X_OK 是否有执行权限
     if(access(WMIX_MSG_PATH, F_OK) != 0)
-        mkdir(WMIX_MSG_PATH, 0666);
+        mkdir(WMIX_MSG_PATH, 0777);
     //再次检查
     if(access(WMIX_MSG_PATH, F_OK) != 0){
         fprintf(stderr, "wmix_msg_thread: msg path not found\n");
@@ -860,6 +860,8 @@ void wmix_msg_thread(WMixThread_Param *wmtp)
     }
     //清空文件夹
     system(WMIX_MSG_PATH_CLEAR);
+    //权限处理
+    system(WMIX_MSG_PATH_AUTHORITY);
     //获得管道
     if((wmix->msg_key = ftok(WMIX_MSG_PATH, WMIX_MSG_ID)) == -1){
         fprintf(stderr, "wmix_msg_thread: ftok err\n");
@@ -1454,7 +1456,7 @@ void wmix_load_wav2(
     //
     //创建消息挂靠路径
     if(access(msgPath, F_OK) != 0)
-        creat(msgPath, 0666);
+        creat(msgPath, 0777);
     //创建消息
     if((msg_key = ftok(msgPath, WMIX_MSG_ID)) == -1){
         fprintf(stderr, "wmix_load_wav2: ftok err\n");
@@ -1472,12 +1474,10 @@ void wmix_load_wav2(
     do
     {
         //msg 检查
+        msg.type = 0;
         ret = msgrcv(msg_fd, &msg, WMIX_MSG_BUFF_SIZE, 0, IPC_NOWAIT);//返回队列中的第一个消息 非阻塞方式
         if(ret < 1 && errno != ENOMSG) //消息队列被关闭
-        {
-            remove(msgPath);
             break;
-        }
         //播放文件
         ret = read(fd, buff, buffSize);
         if(ret > 0)
@@ -1515,6 +1515,7 @@ void wmix_load_wav2(
         }
     }while(ret > 0);
     //
+    remove(msgPath);
     close(fd);
     free(buff);
     //

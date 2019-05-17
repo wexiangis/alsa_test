@@ -29,8 +29,9 @@ typedef struct SNDPCMContainer {
 #include <pthread.h>
 #include <sys/ipc.h>
 
-#define WMIX_MSG_PATH "/var/tmp/wmix"
-#define WMIX_MSG_PATH_CLEAR "rm -rf /var/tmp/wmix/*"
+#define WMIX_MSG_PATH "/tmp/wmix"
+#define WMIX_MSG_PATH_CLEAR "rm -rf /tmp/wmix/*"
+#define WMIX_MSG_PATH_AUTHORITY "chmod 777 /tmp/wmix -R"
 #define WMIX_MSG_ID   'w'
 #define WMIX_MSG_BUFF_SIZE 128
 
