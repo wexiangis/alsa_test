@@ -790,7 +790,7 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
                 break;
             //
             total += ret;
-            total2 += ret*buffSizePow;
+            total2 = total*buffSizePow;
             //播放时间
             second = total/bytes_p_second;
             //
@@ -1087,9 +1087,11 @@ WMix_Point wmix_load_wavStream(
 {
     WMix_Point pHead = head, pSrc = src;
     WMix_Point pTail;
-    //
+    // (缓冲区数据/3 + 新数据/3）*2
     uint8_t reduceBackground = 3, reduceSrc = 3;
     uint8_t recover = 2;
+    //srcU8Len 计数
+    uint32_t count;
     //
     if(!wmix || !wmix->run || !pSrc.U8 || !pHead.U8 || srcU8Len < 1)
     {
@@ -1101,38 +1103,22 @@ WMix_Point wmix_load_wavStream(
         channels == WMIX_CHANNELS && 
         sample == WMIX_SAMPLE)
     {
-        //--- 数据拷贝 ---
-        if(pHead.U8 + srcU8Len < wmix->end.U8)//数据正常写入
+        for(count = 0; count < srcU8Len;)
         {
-            pTail.U32 = pHead.U32 + srcU8Len/4 + 1;
+            //拷贝一帧数据
+            *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
+            *pHead.S16 *= recover;
+            pHead.S16++;
+            pSrc.S16++;
+            *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
+            *pHead.S16 *= recover;
+            pHead.S16++;
+            pSrc.S16++;
             //
-            for(;pHead.S16 < pTail.S16;)
-            {
-                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
-                *pHead.S16 *= recover;
-                pHead.S16++;
-                pSrc.S16++;
-            }
-        }
-        else//数据将从循环缓冲区尾部折返到头部
-        {
-            pTail.U32 = wmix->start.U32 + (srcU8Len - (wmix->end.U8 - pHead.U8))/4 + 1;
-            //写到尾
-            for(;pHead.S16 < wmix->end.S16;)
-            {
-                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
-                *pHead.S16 *= recover;
-                pHead.S16++;
-                pSrc.S16++;
-            }
-            //从头部继续写
-            for(pHead.S16 = wmix->start.S16; pHead.S16 < pTail.S16;)
-            {
-                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
-                *pHead.S16 *= recover;
-                pHead.S16++;
-                pSrc.S16++;
-            }
+            count += 4;
+            //循环处理
+            if(pHead.S16 >= wmix->end.S16)
+                pHead.S16 = wmix->start.S16;
         }
     }
     //---------- 参数不一致 插值拷贝 ----------
@@ -1142,8 +1128,6 @@ WMix_Point wmix_load_wavStream(
         int32_t freqErr = freq - WMIX_FREQ;
         //步差计数 和 步差分量
         float divCount, divPow;
-        //srcU8Len 计数
-        uint32_t count;
         //音频频率大于默认频率 //--- 重复代码比较多且使用可能极小,为减小函数入栈容量,不写了 ---
         if(freqErr > 0)
         {
