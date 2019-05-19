@@ -175,27 +175,33 @@ enum mad_flow output(void *data,
   if(buff->fd == 0)
     buff->fd = -1;
   
-  if(pcm->channels == 2)
-  {
-    for(count = 0; count < pcm->length; count++)
-    {
-      *dat++ = scale(pcm->samples[0][count]);
-      *dat++ = scale(pcm->samples[1][count]);
-    }
-  }
-  else if(pcm->channels == 1)
-  {
-    for(count = 0; count < pcm->length; count++)
-    {
-      *dat++ = scale(pcm->samples[0][count]);
-      // *dat++ = scale(pcm->samples[1][count]);
-    }
-  }
-
   if(buff->fd > 0)
-    write(buff->fd, 
-      (char *)&pcm->samples[0][0], 
-      (size_t)pcm->length*4);
+  {
+    if(pcm->channels == 2)
+    {
+      for(count = 0; count < pcm->length; count++)
+      {
+        *dat++ = scale(pcm->samples[0][count]);
+        *dat++ = scale(pcm->samples[1][count]);
+      }
+      //
+      write(buff->fd, 
+        (char *)&pcm->samples[0][0], 
+        (size_t)pcm->length*4);
+    }
+    else if(pcm->channels == 1)
+    {
+      for(count = 0; count < pcm->length; count++)
+      {
+        *dat++ = scale(pcm->samples[0][count]);
+        // *dat++ = scale(pcm->samples[1][count]);
+      }
+      //
+      write(buff->fd, 
+        (char *)&pcm->samples[0][0], 
+        (size_t)pcm->length*2);
+    }
+  }
 
   printf("output: chn: %d  freq: %d Hz  bitrate: %ld bps  len: %d  -%ld- \n",
     pcm->channels,

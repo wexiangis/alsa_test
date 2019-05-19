@@ -1086,7 +1086,6 @@ WMix_Point wmix_load_wavStream(
     WMix_Point head)
 {
     WMix_Point pHead = head, pSrc = src;
-    WMix_Point pTail;
     // (缓冲区数据/3 + 新数据/3）*2
     uint8_t reduceBackground = 3, reduceSrc = 3;
     uint8_t recover = 2;
