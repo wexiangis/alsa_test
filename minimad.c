@@ -39,7 +39,7 @@
  * format.
  */
 
-#define MP3_FILE "./tt3.mp3"
+#define MP3_FILE "./tt2.mp3"
 
 static int decode(unsigned char const *, unsigned long);
 

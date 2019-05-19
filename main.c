@@ -62,33 +62,41 @@ int main()
             if(mode == 0)
             {
                 if(input[0] == '1')
-                    wmix_play_wav("./test.wav");
+                    wmix_play("./test.wav");
                 else if(input[0] == '2')
-                    wmix_play_wav("./test2.wav");
+                    wmix_play("./test2.wav");
                 else if(input[0] == '0')
-                    wmix_play_wav("./capture.wav");
+                    wmix_play("./capture.wav");
 
                 else if(input[0] == 'm' && input[1] == '1')
-                    wmix_play_wav("./music.wav");
+                    wmix_play("./music.wav");
                 else if(input[0] == 'm' && input[1] == '2')
-                    wmix_play_wav("./music2.wav");
+                    wmix_play("./music2.wav");
+                else if(input[0] == 'm' && input[1] == '3')
+                    wmix_play("./tt2.mp3");
+                else if(input[0] == 'm' && input[1] == '4')
+                    wmix_play("./tt3.mp3");
             }
             else
             {
                 if(input[0] == '1')
-                    wmix_play_wav2("./test.wav");
+                    wmix_play2("./test.wav");
                 else if(input[0] == '2')
-                    wmix_play_wav2("./test2.wav");
+                    wmix_play2("./test2.wav");
                 else if(input[0] == '0')
-                    wmix_play_wav2("./capture.wav");
+                    wmix_play2("./capture.wav");
 
                 else if(input[0] == 'm' && input[1] == '1')
-                    wmix_play_wav2("./music.wav");
+                    wmix_play2("./music.wav");
                 else if(input[0] == 'm' && input[1] == '2')
-                    wmix_play_wav2("./music2.wav");
+                    wmix_play2("./music2.wav");
+                else if(input[0] == 'm' && input[1] == '3')
+                    wmix_play2("./tt2.mp3");
+                else if(input[0] == 'm' && input[1] == '4')
+                    wmix_play2("./tt3.mp3");
 
                 else if(input[0] == 'c')
-                    wmix_play_wav2(NULL);
+                    wmix_play2(NULL);
             }
             
             //数据流 播放

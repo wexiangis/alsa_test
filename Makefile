@@ -10,7 +10,7 @@ LIBS =
 endif
 
 target:
-	$(CC)gcc -Wall -o wmix wmix.c wav.c $(LIBS) $(INCS) -lasound -lm -ldl -lpthread
+	$(CC)gcc -Wall -o wmix wmix.c wav.c id3.c $(LIBS) $(INCS) -lasound -lm -ldl -lpthread -lmad
 	$(CC)gcc -Wall -o test main.c wmix_user.c -lpthread $(LIBS) $(INCS)
 	$(CC)gcc -Wall -o mad minimad.c id3.c wmix_user.c $(LIBS) $(INCS) -lmad
 

@@ -2,6 +2,7 @@
     "files.associations": {
         "unistd.h": "c",
         "time.h": "c",
-        "error.h": "c"
+        "error.h": "c",
+        "mad.h": "c"
     }
 }
