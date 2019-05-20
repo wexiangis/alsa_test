@@ -73,9 +73,11 @@ int main()
                 else if(input[0] == 'm' && input[1] == '2')
                     wmix_play("./music2.wav");
                 else if(input[0] == 'm' && input[1] == '3')
-                    wmix_play("./tt2.mp3");
+                    wmix_play("./music3.mp3");
                 else if(input[0] == 'm' && input[1] == '4')
-                    wmix_play("./tt3.mp3");
+                    wmix_play("./music4.mp3");
+                else if(input[0] == 'm' && input[1] == '5')
+                    wmix_play("./music5.mp3");
             }
             else
             {
@@ -91,9 +93,11 @@ int main()
                 else if(input[0] == 'm' && input[1] == '2')
                     wmix_play2("./music2.wav");
                 else if(input[0] == 'm' && input[1] == '3')
-                    wmix_play2("./tt2.mp3");
+                    wmix_play2("./music3.mp3");
                 else if(input[0] == 'm' && input[1] == '4')
-                    wmix_play2("./tt3.mp3");
+                    wmix_play2("./music4.mp3");
+                else if(input[0] == 'm' && input[1] == '5')
+                    wmix_play2("./music5.mp3");
 
                 else if(input[0] == 'c')
                     wmix_play2(NULL);

@@ -810,10 +810,10 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
         usleep(10000);
     }
     //等待播放完毕
-    while(wmtp->wmix->run && 
-        wmtp->wmix->head.U8 != wmtp->wmix->tail.U8 &&
-        get_tick_err(wmtp->wmix->tick, tick) < total2)
-        usleep(1000);
+    // while(wmtp->wmix->run && 
+    //     wmtp->wmix->head.U8 != wmtp->wmix->tail.U8 &&
+    //     get_tick_err(wmtp->wmix->tick, tick) < total2)
+    //     usleep(1000);
     //
     printf(">> %s end <<\n", path);
     //
@@ -1104,6 +1104,25 @@ void wmix_exit(WMix_Struct *wmix)
     }
 }
 
+static inline int16_t volumeAdd(int16_t L1, int16_t L2)
+{
+    int32_t sum;
+    //
+    if(L1 == 0)
+        return L2;
+    else if(L2 == 0)
+        return L1;
+    else{
+        sum = (int32_t)L1 + L2;
+        if(sum < -32768)
+            return -32768;
+        else if(sum > 32767)
+            return 32767;
+        else
+            return sum;
+    }
+}
+
 WMix_Point wmix_load_wavStream(
     WMix_Struct *wmix,
     WMix_Point src,
@@ -1114,9 +1133,6 @@ WMix_Point wmix_load_wavStream(
     WMix_Point head)
 {
     WMix_Point pHead = head, pSrc = src;
-    // (缓冲区数据/3 + 新数据/3）*2
-    uint8_t reduceBackground = 1, reduceSrc = 1;
-    uint8_t recover = 1;
     //srcU8Len 计数
     uint32_t count;
     //
@@ -1124,12 +1140,6 @@ WMix_Point wmix_load_wavStream(
     {
         pHead.U8 = 0;
         return pHead;
-    }
-    //多个音频播放时,适度降低音量
-    if(wmix->thread_count > 3)
-    {
-        reduceBackground = reduceSrc = 3;
-        recover = 2;
     }
     //---------- 参数一致 直接拷贝 ----------
     if(freq == WMIX_FREQ && 
@@ -1139,12 +1149,10 @@ WMix_Point wmix_load_wavStream(
         for(count = 0; count < srcU8Len;)
         {
             //拷贝一帧数据
-            *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
-            *pHead.S16 *= recover;
+            *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
             pHead.S16++;
             pSrc.S16++;
-            *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
-            *pHead.S16 *= recover;
+            *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
             pHead.S16++;
             pSrc.S16++;
             //
@@ -1176,9 +1184,68 @@ WMix_Point wmix_load_wavStream(
                     break;
                 case 16:
                     if(channels == 2)
-                        ;
+                    {
+                        for(count = 0, divCount = 0; count < srcU8Len;)
+                        {
+                            //步差计数已满 跳过帧
+                            if(divCount >= 1.0)
+                            {
+                                //
+                                pSrc.S16++;
+                                pSrc.S16++;
+                                //
+                                divCount -= 1.0;
+                                count += 4;
+                            }
+                            else
+                            {
+                                //拷贝一帧数据
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
+                                pHead.S16++;
+                                pSrc.S16++;
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
+                                pHead.S16++;
+                                pSrc.S16++;
+                                //
+                                divCount += divPow;
+                                count += 4;
+                            }
+                            //循环处理
+                            if(pHead.S16 >= wmix->end.S16)
+                                pHead.S16 = wmix->start.S16;
+                        }
+                    }
                     else if(channels == 1)
-                        ;
+                    {
+                        for(count = 0, divCount = 0; count < srcU8Len;)
+                        {
+                            //步差计数已满 跳过帧
+                            if(divCount >= 1.0)
+                            {
+                                //
+                                pSrc.S16++;
+                                //
+                                divCount -= 1.0;
+                                count += 2;
+                            }
+                            else
+                            {
+                                //拷贝一帧数据
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
+                                pHead.S16++;
+                                // pSrc.S16++;
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
+                                pHead.S16++;
+                                pSrc.S16++;
+                                //
+                                divCount += divPow;
+                                count += 2;
+                            }
+                            //循环处理
+                            if(pHead.S16 >= wmix->end.S16)
+                                pHead.S16 = wmix->start.S16;
+                        }
+                    }
                     break;
                 case 32:
                     if(channels == 2)
@@ -1216,11 +1283,9 @@ WMix_Point wmix_load_wavStream(
                             if(divCount >= 1.0)
                             {
                                 //循环缓冲区指针继续移动,pSrc指针不动
-                                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
-                                *pHead.S16 *= recover;
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
                                 pHead.S16++;
-                                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
-                                *pHead.S16 *= recover;
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
                                 pHead.S16++;
                                 //
                                 divCount -= 1.0;
@@ -1228,12 +1293,10 @@ WMix_Point wmix_load_wavStream(
                             else
                             {
                                 //拷贝一帧数据
-                                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
-                                *pHead.S16 *= recover;
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
                                 pHead.S16++;
                                 pSrc.S16++;
-                                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
-                                *pHead.S16 *= recover;
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
                                 pHead.S16++;
                                 pSrc.S16++;
                                 //
@@ -1253,11 +1316,9 @@ WMix_Point wmix_load_wavStream(
                             if(divCount >= 1.0)
                             {
                                 //拷贝一帧数据 pSrc指针不动
-                                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
-                                *pHead.S16 *= recover;
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
                                 pHead.S16++;
-                                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
-                                *pHead.S16 *= recover;
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
                                 pHead.S16++;
                                 //
                                 divCount -= 1.0;
@@ -1265,12 +1326,10 @@ WMix_Point wmix_load_wavStream(
                             else
                             {
                                 //拷贝一帧数据
-                                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
-                                *pHead.S16 *= recover;
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
                                 pHead.S16++;
                                 // pSrc.S16++;
-                                *pHead.S16 = (*pHead.S16)/reduceBackground + (*pSrc.S16)/reduceSrc;
-                                *pHead.S16 *= recover;
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
                                 pHead.S16++;
                                 pSrc.S16++;
                                 //
@@ -1449,10 +1508,10 @@ void wmix_load_wav(
         }
     }while(ret > 0);
     //等待播放完毕
-    while(wmix->run && 
-        wmix->head.U8 != wmix->tail.U8 &&
-        get_tick_err(wmix->tick, tick) < total2)
-        usleep(1000);
+    // while(wmix->run && 
+    //     wmix->head.U8 != wmix->tail.U8 &&
+    //     get_tick_err(wmix->tick, tick) < total2)
+    //     usleep(1000);
     //
     if(msgPath)
         remove(msgPath);
@@ -1678,10 +1737,10 @@ void wmix_load_mp3(
     mad_decoder_finish(&decoder);
 
     //等待播放完毕
-    while(wmm.wmix->run && 
-        wmix->head.U8 != wmix->tail.U8 &&
-        get_tick_err(wmm.wmix->tick, wmm.tick) < wmm.total2)
-        usleep(1000);
+    // while(wmm.wmix->run && 
+    //     wmix->head.U8 != wmix->tail.U8 &&
+    //     get_tick_err(wmm.wmix->tick, wmm.tick) < wmm.total2)
+    //     usleep(1000);
     //
     if(msgPath)
         remove(msgPath);
