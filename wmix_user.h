@@ -7,10 +7,10 @@
 //count: 音量  div: 分度
 void wmix_set_volume(uint8_t count, uint8_t div);
 
-//播放wav文件
+//播放 wav 和 mp3 文件
 void wmix_play(char *wavOrMp3);
 
-//播放wav文件 (互斥播放, wavOrMp3=NULL时强制关闭播放)
+//播放 wav 和 mp3 文件 (互斥播放, wavOrMp3=NULL 时强制关闭播放)
 void wmix_play2(char *wavOrMp3);
 
 //播放音频流,用于播放录音

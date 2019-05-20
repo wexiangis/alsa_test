@@ -67,6 +67,7 @@ typedef struct{
     uint8_t run;//全局正常运行标志
     uint32_t tick;//播放指针启动至今走过的字节数
     uint32_t thread_count;//线程计数 增加线程时+1 减少时-1 等于0时全部退出
+    uint32_t thread_tick;
     //
     key_t msg_key;
     int msg_fd;

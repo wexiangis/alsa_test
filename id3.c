@@ -121,3 +121,9 @@ unsigned int id3_len(char *filePath)
     return ret;
 }
 
+unsigned int id3_info(char *filePath, void *privateData, 
+    void (*callback)(void *privateData, char type[4], char *info, int len))
+{
+
+    return 0;
+}

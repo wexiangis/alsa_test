@@ -809,6 +809,11 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
         //
         usleep(10000);
     }
+    //等待播放完毕
+    while(wmtp->wmix->run && 
+        wmtp->wmix->head.U8 != wmtp->wmix->tail.U8 &&
+        get_tick_err(wmtp->wmix->tick, tick) < total2)
+        usleep(1000);
     //
     printf(">> %s end <<\n", path);
     //
@@ -1110,8 +1115,8 @@ WMix_Point wmix_load_wavStream(
 {
     WMix_Point pHead = head, pSrc = src;
     // (缓冲区数据/3 + 新数据/3）*2
-    uint8_t reduceBackground = 3, reduceSrc = 3;
-    uint8_t recover = 2;
+    uint8_t reduceBackground = 1, reduceSrc = 1;
+    uint8_t recover = 1;
     //srcU8Len 计数
     uint32_t count;
     //
@@ -1119,6 +1124,12 @@ WMix_Point wmix_load_wavStream(
     {
         pHead.U8 = 0;
         return pHead;
+    }
+    //多个音频播放时,适度降低音量
+    if(wmix->thread_count > 3)
+    {
+        reduceBackground = reduceSrc = 3;
+        recover = 2;
     }
     //---------- 参数一致 直接拷贝 ----------
     if(freq == WMIX_FREQ && 
@@ -1437,6 +1448,11 @@ void wmix_load_wav(
                 break;
         }
     }while(ret > 0);
+    //等待播放完毕
+    while(wmix->run && 
+        wmix->head.U8 != wmix->tail.U8 &&
+        get_tick_err(wmix->tick, tick) < total2)
+        usleep(1000);
     //
     if(msgPath)
         remove(msgPath);
@@ -1661,6 +1677,11 @@ void wmix_load_mp3(
     //release the decoder
     mad_decoder_finish(&decoder);
 
+    //等待播放完毕
+    while(wmm.wmix->run && 
+        wmix->head.U8 != wmix->tail.U8 &&
+        get_tick_err(wmm.wmix->tick, wmm.tick) < wmm.total2)
+        usleep(1000);
     //
     if(msgPath)
         remove(msgPath);
