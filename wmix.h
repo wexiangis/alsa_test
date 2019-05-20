@@ -108,6 +108,7 @@ void wmix_load_wav(
     char *wavPath,
     char *msgPath);
 
+//指定mp3文件 的方式播放
 void wmix_load_mp3(
     WMix_Struct *wmix,
     char *mp3Path,

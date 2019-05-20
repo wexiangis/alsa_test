@@ -48,9 +48,9 @@ void wmix_set_volume(uint8_t count, uint8_t div)
     msgsnd(msg_fd, &msg, WMIX_MSG_BUFF_SIZE, IPC_NOWAIT);
 }
 
-void wmix_play(char *wavPath)
+void wmix_play(char *wavOrMp3)
 {
-    if(!wavPath)
+    if(!wavOrMp3)
         return;
     WMix_Msg msg;
     //msg初始化
@@ -58,11 +58,11 @@ void wmix_play(char *wavPath)
     //装填 message
     memset(&msg, 0, sizeof(WMix_Msg));
     msg.type = 2;
-    if(strlen(wavPath) > WMIX_MSG_BUFF_SIZE){
-        fprintf(stderr, "wmix_play_wav: wavPath > max len (%d)\n", WMIX_MSG_BUFF_SIZE);
+    if(strlen(wavOrMp3) > WMIX_MSG_BUFF_SIZE){
+        fprintf(stderr, "wmix_play_wav: %s > max len (%d)\n", wavOrMp3, WMIX_MSG_BUFF_SIZE);
         return ;
     }
-    strcpy((char*)msg.value, wavPath);
+    strcpy((char*)msg.value, wavOrMp3);
     //发出
     msgsnd(msg_fd, &msg, WMIX_MSG_BUFF_SIZE, IPC_NOWAIT);
 }
@@ -81,7 +81,7 @@ char *wmix_auto_path2(char *buff, int pid, uint8_t id)
     return buff;
 }
 
-void wmix_play2(char *wavPath)
+void wmix_play2(char *wavOrMp3)
 {
     static uint8_t id_w = 0;
     uint8_t id_f, id_max = 5;// id_max 用于提高容错率,防止打断失败
@@ -119,15 +119,16 @@ void wmix_play2(char *wavPath)
             remove(msgPath);
         }
     }
-    //wavPath == NULL 时关闭播放
-    if(wavPath)
+    //wavOrMp3 == NULL 时关闭播放
+    if(wavOrMp3)
     {
         wmix_auto_path2(msgPath, getpid(), id_w++);
         if(id_w >= id_max)
             id_w = 0;
         //
-        if(strlen(msgPath) + strlen(wavPath) + 2 > WMIX_MSG_BUFF_SIZE){
-            fprintf(stderr, "wmix_play_wav: wavPath > max len (%ld)\n", (long)(WMIX_MSG_BUFF_SIZE-strlen(msgPath)-2));
+        if(strlen(msgPath) + strlen(wavOrMp3) + 2 > WMIX_MSG_BUFF_SIZE){
+            fprintf(stderr, "wmix_play_wav: %s > max len (%ld)\n", 
+                wavOrMp3, (long)(WMIX_MSG_BUFF_SIZE-strlen(msgPath)-2));
             return;
         }
         //
@@ -143,8 +144,8 @@ void wmix_play2(char *wavPath)
         memset(&msg, 0, sizeof(WMix_Msg));
         msg.type = 3;
         //wav路径 + msg路径 
-        strcpy((char*)msg.value, wavPath);
-        strcpy((char*)&msg.value[strlen(wavPath)+1], msgPath);
+        strcpy((char*)msg.value, wavOrMp3);
+        strcpy((char*)&msg.value[strlen(wavOrMp3)+1], msgPath);
         //发出
         msgsnd(msg_fd, &msg, WMIX_MSG_BUFF_SIZE, IPC_NOWAIT);
         //等待启动

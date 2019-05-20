@@ -8,10 +8,10 @@
 void wmix_set_volume(uint8_t count, uint8_t div);
 
 //播放wav文件
-void wmix_play(char *wavPath);
+void wmix_play(char *wavOrMp3);
 
-//播放wav文件 (互斥播放, wavPath=NULL时强制关闭播放)
-void wmix_play2(char *wavPath);
+//播放wav文件 (互斥播放, wavOrMp3=NULL时强制关闭播放)
+void wmix_play2(char *wavOrMp3);
 
 //播放音频流,用于播放录音
 //成功返回fd(fifo的写入端)  失败返回0
