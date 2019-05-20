@@ -105,19 +105,10 @@ WMix_Point wmix_load_wavStream(
 //指定wav文件 的方式播放
 void wmix_load_wav(
     WMix_Struct *wmix,
-    char *wavPath);
-
-void wmix_load_mp3(
-    WMix_Struct *wmix,
-    char *mp3Path);
-
-//指定wav文件 的方式播放 (msgPath被关闭时停止)
-void wmix_load_wav2(
-    WMix_Struct *wmix,
     char *wavPath,
     char *msgPath);
 
-void wmix_load_mp3_2(
+void wmix_load_mp3(
     WMix_Struct *wmix,
     char *mp3Path,
     char *msgPath);
