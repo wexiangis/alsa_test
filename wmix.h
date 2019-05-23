@@ -7,7 +7,7 @@
 
 //默认录音参数
 #define DEFAULT_CHANNELS         (2)   //通道数(channel)：该参数为1表示单声道，2则是立体声。
-#define DEFAULT_SAMPLE_RATE      (8000)//采样率(rate)：每秒钟采样次数，该次数是针对桢而言
+#define DEFAULT_SAMPLE_RATE      (44100)//采样率(rate)：每秒钟采样次数，该次数是针对桢而言
 #define DEFAULT_SAMPLE_LENGTH    (16)  //样本长度(sample)：样本是记录音频数据最基本的单位，常见的有8位和16位。
 
 typedef struct SNDPCMContainer {
@@ -71,6 +71,8 @@ typedef struct{
     //
     key_t msg_key;
     int msg_fd;
+    //
+    uint8_t reduceMode;
 }WMix_Struct;
 
 //设置音量
@@ -101,19 +103,22 @@ WMix_Point wmix_load_wavStream(
     uint16_t freq,
     uint8_t channels,
     uint8_t sample,
-    WMix_Point head);
+    WMix_Point head,
+    uint8_t reduce);
 
 //指定wav文件 的方式播放
 void wmix_load_wav(
     WMix_Struct *wmix,
     char *wavPath,
-    char *msgPath);
+    char *msgPath,
+    uint8_t reduce);
 
 //指定mp3文件 的方式播放
 void wmix_load_mp3(
     WMix_Struct *wmix,
     char *mp3Path,
-    char *msgPath);
+    char *msgPath,
+    uint8_t reduce);
 
 #endif
 

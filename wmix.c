@@ -701,11 +701,13 @@ int SNDWAV_SetParams2(SNDPCMContainer_t *sndpcm, uint16_t freq, uint8_t channels
 
 typedef struct{
     WMix_Struct *wmix;
+    uint8_t flag;
     uint8_t *param;
 }WMixThread_Param;
 
 void wmix_throwOut_thread(
     WMix_Struct *wmix,
+    uint8_t flag,
     uint8_t *param,
     size_t paramLen,
     void *callback)
@@ -716,6 +718,7 @@ void wmix_throwOut_thread(
     //
     wmtp = (WMixThread_Param*)calloc(1, sizeof(WMixThread_Param));
     wmtp->wmix = wmix;
+    wmtp->flag = flag;
     if(paramLen > 0 && param)
     {
         wmtp->param = (uint8_t*)calloc(paramLen, sizeof(uint8_t));
@@ -747,6 +750,7 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
     ssize_t ret, total = 0;
     double total2 = 0, buffSizePow;
     uint32_t tick, second = 0, bytes_p_second, bytes_p_second2, bpsCount = 0;
+    uint8_t rdce = wmtp->flag+1, rdceIsMe = 0;
     //
     if (mkfifo(path, 0666) < 0 && errno != EEXIST)
     {
@@ -755,6 +759,14 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
     }
     //
     fd_read = open(path, O_RDONLY);
+    //独占 reduceMode
+    if(wmtp->flag && wmtp->wmix->reduceMode == 1)
+    {
+        wmtp->wmix->reduceMode = rdce;
+        rdceIsMe = 1;
+    }
+    else
+        rdce = 1;
     //
     bytes_p_second = chn*sample/8*freq;
     buffSize = bytes_p_second;
@@ -788,7 +800,7 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
             //
             head = wmix_load_wavStream(
                 wmtp->wmix, 
-                src, ret, freq, chn, sample, head);
+                src, ret, freq, chn, sample, head, rdce);
             if(head.U8 == 0)
                 break;
             //
@@ -827,6 +839,9 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
     //
     if(wmtp->param)
         free(wmtp->param);
+    //关闭 reduceMode
+    if(rdceIsMe)
+        wmtp->wmix->reduceMode = 1;
     free(wmtp);
 }
 
@@ -840,9 +855,9 @@ void wmix_load_wav_mp3_thread(WMixThread_Param *wmtp)
         (name[len-3] == 'm' || name[len-3] == 'M') &&
         (name[len-2] == 'p' || name[len-2] == 'P') &&
         name[len-1] == '3')
-        wmix_load_mp3(wmtp->wmix, name, NULL);
+        wmix_load_mp3(wmtp->wmix, name, NULL, wmtp->flag);
     else
-        wmix_load_wav(wmtp->wmix, name, NULL);
+        wmix_load_wav(wmtp->wmix, name, NULL, wmtp->flag);
     //线程计数
     wmtp->wmix->thread_count -= 1;
     //
@@ -861,9 +876,9 @@ void wmix_load_wav_mp3_2_thread(WMixThread_Param *wmtp)
         (name[len-3] == 'm' || name[len-3] == 'M') &&
         (name[len-2] == 'p' || name[len-2] == 'P') &&
         name[len-1] == '3')
-        wmix_load_mp3(wmtp->wmix, name, (char*)&wmtp->param[len+1]);
+        wmix_load_mp3(wmtp->wmix, name, (char*)&wmtp->param[len+1], wmtp->flag);
     else
-        wmix_load_wav(wmtp->wmix, name, (char*)&wmtp->param[len+1]);
+        wmix_load_wav(wmtp->wmix, name, (char*)&wmtp->param[len+1], wmtp->flag);
     //线程计数
     wmtp->wmix->thread_count -= 1;
     //
@@ -912,22 +927,28 @@ void wmix_msg_thread(WMixThread_Param *wmtp)
         ret = msgrcv(wmix->msg_fd, &msg, WMIX_MSG_BUFF_SIZE, 0, IPC_NOWAIT);//返回队列中的第一个消息 非阻塞方式
         if(ret > 0)
         {
-            //音量设置
-            if(msg.type == 1)
-                sys_volume_set(msg.value[0], msg.value[1]);
-            //播放wav
-            else if(msg.type == 2)
-                wmix_throwOut_thread(wmix, msg.value, WMIX_MSG_BUFF_SIZE, &wmix_load_wav_mp3_thread);
-            //播放wav (互斥播放)
-            else if(msg.type == 3)
-                wmix_throwOut_thread(wmix, msg.value, WMIX_MSG_BUFF_SIZE, &wmix_load_wav_mp3_2_thread);
-            //播放stream
-            else if(msg.type == 4)
-                wmix_throwOut_thread(wmix, msg.value, WMIX_MSG_BUFF_SIZE, &wmix_load_stream_thread);
-            //复位
-            else if(msg.type == 5){
-                wmix->run = 0;
-                break;
+            switch(msg.type&0xFF)
+            {
+                //音量设置
+                case 1:
+                    sys_volume_set(msg.value[0], msg.value[1]);
+                    break;
+                //混音播放音频
+                case 2:
+                    wmix_throwOut_thread(wmix, (msg.type>>8)&0xFF, msg.value, WMIX_MSG_BUFF_SIZE, &wmix_load_wav_mp3_thread);
+                    break;
+                //互斥播放音频
+                case 3:
+                    wmix_throwOut_thread(wmix, (msg.type>>8)&0xFF, msg.value, WMIX_MSG_BUFF_SIZE, &wmix_load_wav_mp3_2_thread);
+                    break;
+                //播放stream
+                case 4:
+                    wmix_throwOut_thread(wmix, (msg.type>>8)&0xFF, msg.value, WMIX_MSG_BUFF_SIZE, &wmix_load_stream_thread);
+                    break;
+                //复位
+                case 5:
+                    wmix->run = 0;
+                    break;
             }
             continue;
         }
@@ -1052,8 +1073,9 @@ WMix_Struct *wmix_init(void)
     //
     // pthread_mutex_init(&wmix->lock, NULL);
     wmix->run = 1;
-    wmix_throwOut_thread(wmix, NULL, 0, &wmix_msg_thread);
-    wmix_throwOut_thread(wmix, NULL, 0, &wmix_play_thread);
+    wmix->reduceMode = 1;
+    wmix_throwOut_thread(wmix, 0, NULL, 0, &wmix_msg_thread);
+    wmix_throwOut_thread(wmix, 0, NULL, 0, &wmix_play_thread);
     //
 	return wmix;
 
@@ -1130,17 +1152,22 @@ WMix_Point wmix_load_wavStream(
     uint16_t freq,
     uint8_t channels,
     uint8_t sample,
-    WMix_Point head)
+    WMix_Point head,
+    uint8_t reduce)
 {
     WMix_Point pHead = head, pSrc = src;
     //srcU8Len 计数
     uint32_t count;
+    uint8_t *rdce = &wmix->reduceMode, rdce1 = 1;
     //
     if(!wmix || !wmix->run || !pSrc.U8 || !pHead.U8 || srcU8Len < 1)
     {
         pHead.U8 = 0;
         return pHead;
     }
+    //
+    if(reduce == wmix->reduceMode)
+        rdce = &rdce1;
     //---------- 参数一致 直接拷贝 ----------
     if(freq == WMIX_FREQ && 
         channels == WMIX_CHANNELS && 
@@ -1149,10 +1176,10 @@ WMix_Point wmix_load_wavStream(
         for(count = 0; count < srcU8Len;)
         {
             //拷贝一帧数据
-            *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
+            *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
             pHead.S16++;
             pSrc.S16++;
-            *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
+            *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
             pHead.S16++;
             pSrc.S16++;
             //
@@ -1200,10 +1227,10 @@ WMix_Point wmix_load_wavStream(
                             else
                             {
                                 //拷贝一帧数据
-                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
                                 pSrc.S16++;
-                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
                                 pSrc.S16++;
                                 //
@@ -1231,10 +1258,10 @@ WMix_Point wmix_load_wavStream(
                             else
                             {
                                 //拷贝一帧数据
-                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
                                 // pSrc.S16++;
-                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
                                 pSrc.S16++;
                                 //
@@ -1283,9 +1310,9 @@ WMix_Point wmix_load_wavStream(
                             if(divCount >= 1.0)
                             {
                                 //循环缓冲区指针继续移动,pSrc指针不动
-                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
-                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
                                 //
                                 divCount -= 1.0;
@@ -1293,10 +1320,10 @@ WMix_Point wmix_load_wavStream(
                             else
                             {
                                 //拷贝一帧数据
-                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
                                 pSrc.S16++;
-                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
                                 pSrc.S16++;
                                 //
@@ -1316,9 +1343,9 @@ WMix_Point wmix_load_wavStream(
                             if(divCount >= 1.0)
                             {
                                 //拷贝一帧数据 pSrc指针不动
-                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
-                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
                                 //
                                 divCount -= 1.0;
@@ -1326,10 +1353,10 @@ WMix_Point wmix_load_wavStream(
                             else
                             {
                                 //拷贝一帧数据
-                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
                                 // pSrc.S16++;
-                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16);
+                                *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
                                 pSrc.S16++;
                                 //
@@ -1378,7 +1405,8 @@ WMix_Point wmix_load_wavStream(
 void wmix_load_wav(
     WMix_Struct *wmix,
     char *wavPath,
-    char *msgPath)
+    char *msgPath,
+    uint8_t reduce)
 {
     int fd = 0;
     ssize_t ret = 0;
@@ -1388,6 +1416,7 @@ void wmix_load_wav(
     WMix_Point src, head;
     uint32_t tick, total = 0, total2 = 0, second = 0, bpsCount = 0;
     double totalPow;
+    uint8_t rdce = reduce+1, rdceIsMe = 0;
     //
     WMix_Msg msg;
     key_t msg_key;
@@ -1432,6 +1461,14 @@ void wmix_load_wav(
             return;
         }
     }
+    //独占 reduceMode
+    if(reduce && wmix->reduceMode == 1)
+    {
+        wmix->reduceMode = rdce;
+        rdceIsMe = 1;
+    }
+    else
+        rdce = 1;
     //默认缓冲区大小设为1秒字播放字节数
     buffSize = wav.format.bytes_p_second;
     buffSize2 = WMIX_CHANNELS*WMIX_SAMPLE/8*WMIX_FREQ;
@@ -1490,7 +1527,7 @@ void wmix_load_wav(
                 src, ret, 
                 wav.format.sample_rate, 
                 wav.format.channels, 
-                wav.format.sample_length, head);
+                wav.format.sample_length, head, rdce);
             //写入的总字节数统计
             bpsCount += ret;
             total += ret;
@@ -1519,6 +1556,9 @@ void wmix_load_wav(
     free(buff);
     //
     printf(">> %s end <<\n", wavPath);
+    //关闭 reduceMode
+    if(rdceIsMe)
+        wmix->reduceMode = 1;
 }
 
 typedef struct{
@@ -1541,6 +1581,8 @@ typedef struct{
     double totalPow;
     //
     uint32_t bps, bpsCount;
+    //
+    uint8_t rdce;
 }WMix_Mp3;
 
 inline int16_t mad_scale(mad_fixed_t sample)
@@ -1623,7 +1665,7 @@ enum mad_flow mad_output(void *data, struct mad_header const *header, struct mad
         header->samplerate,
         pcm->channels,
         16,
-        wmm->head);
+        wmm->head, wmm->rdce);
     //总字节数计数
     wmm->bpsCount += count;
     wmm->total += count;
@@ -1665,11 +1707,13 @@ enum mad_flow mad_error(void *data, struct mad_stream *stream, struct mad_frame 
 void wmix_load_mp3(
     WMix_Struct *wmix,
     char *mp3Path,
-    char *msgPath)
+    char *msgPath,
+    uint8_t reduce)
 {
     // WMix_Msg msg;
     key_t msg_key;
     // int msg_fd;
+    uint8_t rdceIsMe = 0;
     //
     struct stat sta;
     int fd;
@@ -1681,7 +1725,8 @@ void wmix_load_mp3(
     memset(&wmm, 0, sizeof(WMix_Mp3));
     wmm.wmix = wmix;
     wmm.mp3Path = mp3Path;
-
+    wmm.rdce = reduce+1;
+    
     //
     if(msgPath)
     {
@@ -1724,6 +1769,15 @@ void wmix_load_mp3(
         close(fd);
         return;
     }
+    
+    //独占 reduceMode
+    if(reduce && wmix->reduceMode == 1)
+    {
+        wmix->reduceMode = wmm.rdce;
+        rdceIsMe = 1;
+    }
+    else
+        wmm.rdce = 1;
 
     //configure input, output, and error functions
     mad_decoder_init(&decoder, &wmm,
@@ -1735,6 +1789,10 @@ void wmix_load_mp3(
 
     //release the decoder
     mad_decoder_finish(&decoder);
+
+    //关闭 reduceMode
+    if(rdceIsMe)
+        wmix->reduceMode = 1;
 
     //等待播放完毕
     // while(wmm.wmix->run && 
@@ -1754,6 +1812,7 @@ void wmix_load_mp3(
 
 int main(int argc, char **argv)
 {
+    // record_wav("./capture.wav", 5);
     WMix_Struct *wmix = wmix_init();
     if(wmix){
         sleep(1);
@@ -1761,8 +1820,8 @@ int main(int argc, char **argv)
             //--- 重启 ---
             if(wmix->run == 0 && wmix->thread_count == 0){
                 wmix->run = 1;
-                wmix_throwOut_thread(wmix, NULL, 0, &wmix_msg_thread);
-                wmix_throwOut_thread(wmix, NULL, 0, &wmix_play_thread);
+                wmix_throwOut_thread(wmix, 0, NULL, 0, &wmix_msg_thread);
+                wmix_throwOut_thread(wmix, 0, NULL, 0, &wmix_play_thread);
             }
             usleep(100000);
         }

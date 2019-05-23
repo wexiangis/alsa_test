@@ -48,7 +48,7 @@ void wmix_set_volume(uint8_t count, uint8_t div)
     msgsnd(msg_fd, &msg, WMIX_MSG_BUFF_SIZE, IPC_NOWAIT);
 }
 
-void wmix_play(char *wavOrMp3)
+void wmix_play(char *wavOrMp3, uint8_t backGroundReduce)
 {
     if(!wavOrMp3)
         return;
@@ -57,7 +57,7 @@ void wmix_play(char *wavOrMp3)
     MSG_INIT();
     //装填 message
     memset(&msg, 0, sizeof(WMix_Msg));
-    msg.type = 2;
+    msg.type = 2 + backGroundReduce*0x100;
     if(strlen(wavOrMp3) > WMIX_MSG_BUFF_SIZE){
         fprintf(stderr, "wmix_play_wav: %s > max len (%d)\n", wavOrMp3, WMIX_MSG_BUFF_SIZE);
         return ;
@@ -81,7 +81,7 @@ char *wmix_auto_path2(char *buff, int pid, uint8_t id)
     return buff;
 }
 
-void wmix_play2(char *wavOrMp3)
+void wmix_play2(char *wavOrMp3, uint8_t backGroundReduce)
 {
     static uint8_t id_w = 0;
     uint8_t id_f, id_max = 5;// id_max 用于提高容错率,防止打断失败
@@ -142,7 +142,7 @@ void wmix_play2(char *wavOrMp3)
         }
         //装填 message
         memset(&msg, 0, sizeof(WMix_Msg));
-        msg.type = 3;
+        msg.type = 3 + backGroundReduce*0x100;
         //wav路径 + msg路径 
         strcpy((char*)msg.value, wavOrMp3);
         strcpy((char*)&msg.value[strlen(wavOrMp3)+1], msgPath);
@@ -161,7 +161,8 @@ void wmix_play2(char *wavOrMp3)
 int wmix_stream_open(
     uint8_t channels,
     uint8_t sample,
-    uint16_t freq)
+    uint16_t freq,
+    uint8_t backGroundReduce)
 {
     static uint8_t id = 0;
     //
@@ -189,7 +190,7 @@ int wmix_stream_open(
     path = wmix_auto_path((char*)&msg.value[4], getpid(), id++);
     // remove(path);
     //装填 message
-    msg.type = 4;
+    msg.type = 4 + backGroundReduce*0x100;
     msg.value[0] = channels;
     msg.value[1] = sample;
     msg.value[2] = (freq>>8)&0xFF;

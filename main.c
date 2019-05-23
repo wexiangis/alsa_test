@@ -15,7 +15,7 @@ void fun(void)
     ssize_t ret, total = 0;
     uint8_t buff[4096];
     // int stream = wmix_stream_open(2, 16, 44100);
-    int stream = wmix_stream_open(1, 16, 22050);
+    int stream = wmix_stream_open(1, 16, 22050, 0);
     if(stream > 0)
     {
         // fd = open("./music.wav", O_RDONLY);
@@ -62,52 +62,72 @@ int main()
             if(mode == 0)
             {
                 if(input[0] == '1')
-                    wmix_play("./test.wav");
+                    wmix_play("./test.wav", 0);
                 else if(input[0] == '2')
-                    wmix_play("./test2.wav");
+                    wmix_play("./test2.wav", 0);
                 else if(input[0] == '0')
-                    wmix_play("./capture.wav");
+                    wmix_play("./capture.wav", 0);
 
                 else if(input[0] == 'm' && input[1] == '1')
-                    wmix_play("./music.wav");
+                    wmix_play("./music.wav", 0);
                 else if(input[0] == 'm' && input[1] == '2')
-                    wmix_play("./music2.wav");
+                    wmix_play("./music2.wav", 0);
                 else if(input[0] == 'm' && input[1] == '3')
-                    wmix_play("./music3.mp3");
+                    wmix_play("./music3.mp3", 0);
                 else if(input[0] == 'm' && input[1] == '4')
-                    wmix_play("./music4.mp3");
+                    wmix_play("./music4.mp3", 0);
                 else if(input[0] == 'm' && input[1] == '5')
-                    wmix_play("./music5.mp3");
+                    wmix_play("./music5.mp3", 0);
             }
-            else
+            else if(mode == 1)
             {
                 if(input[0] == '1')
-                    wmix_play2("./test.wav");
+                    wmix_play2("./test.wav", 0);
                 else if(input[0] == '2')
-                    wmix_play2("./test2.wav");
+                    wmix_play2("./test2.wav", 0);
                 else if(input[0] == '0')
-                    wmix_play2("./capture.wav");
+                    wmix_play2("./capture.wav", 0);
 
                 else if(input[0] == 'm' && input[1] == '1')
-                    wmix_play2("./music.wav");
+                    wmix_play2("./music.wav", 0);
                 else if(input[0] == 'm' && input[1] == '2')
-                    wmix_play2("./music2.wav");
+                    wmix_play2("./music2.wav", 0);
                 else if(input[0] == 'm' && input[1] == '3')
-                    wmix_play2("./music3.mp3");
+                    wmix_play2("./music3.mp3", 0);
                 else if(input[0] == 'm' && input[1] == '4')
-                    wmix_play2("./music4.mp3");
+                    wmix_play2("./music4.mp3", 0);
                 else if(input[0] == 'm' && input[1] == '5')
-                    wmix_play2("./music5.mp3");
+                    wmix_play2("./music5.mp3", 0);
 
                 else if(input[0] == 'c')
-                    wmix_play2(NULL);
+                    wmix_play2(NULL, 0);
+            }
+            else if(mode == 2)
+            {
+                if(input[0] == '1')
+                    wmix_play("./test.wav", 4);
+                else if(input[0] == '2')
+                    wmix_play("./test2.wav", 4);
+                else if(input[0] == '0')
+                    wmix_play("./capture.wav", 4);
+
+                else if(input[0] == 'm' && input[1] == '1')
+                    wmix_play("./music.wav", 4);
+                else if(input[0] == 'm' && input[1] == '2')
+                    wmix_play("./music2.wav", 4);
+                else if(input[0] == 'm' && input[1] == '3')
+                    wmix_play("./music3.mp3", 4);
+                else if(input[0] == 'm' && input[1] == '4')
+                    wmix_play("./music4.mp3", 4);
+                else if(input[0] == 'm' && input[1] == '5')
+                    wmix_play("./music5.mp3", 4);
             }
             
             //数据流 播放
             if(input[0] == 't' && input[1] == 0)
                 pthread_create(&th, NULL, (void*)&fun, NULL);
             else if(input[0] == 't' && input[1] == '1')
-                fd = wmix_stream_open(2, 16, 44100);
+                fd = wmix_stream_open(2, 16, 44100, 0);
             else if(input[0] == 't' && input[1] == '2')
             {
                 close(fd);
@@ -122,7 +142,12 @@ int main()
 
             //模式切换
             else if(input[0] == 's')
-                mode = !mode;
+            {
+                mode += 1;
+                if(mode > 2)
+                    mode = 0;
+                printf("mode : %d\n", mode);
+            }
 
             //复位
             else if(input[0] == 'r')
