@@ -111,14 +111,16 @@ void wmix_load_wav(
     WMix_Struct *wmix,
     char *wavPath,
     char *msgPath,
-    uint8_t reduce);
+    uint8_t reduce,
+    uint8_t repeatInterval);
 
 //指定mp3文件 的方式播放
 void wmix_load_mp3(
     WMix_Struct *wmix,
     char *mp3Path,
     char *msgPath,
-    uint8_t reduce);
+    uint8_t reduce,
+    uint8_t repeatInterval);
 
 #endif
 

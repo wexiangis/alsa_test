@@ -81,7 +81,7 @@ char *wmix_auto_path2(char *buff, int pid, uint8_t id)
     return buff;
 }
 
-void wmix_play2(char *wavOrMp3, uint8_t backGroundReduce)
+void wmix_play2(char *wavOrMp3, uint8_t backGroundReduce, uint8_t repeatInterval)
 {
     static uint8_t id_w = 0;
     uint8_t id_f, id_max = 5;// id_max 用于提高容错率,防止打断失败
@@ -142,7 +142,7 @@ void wmix_play2(char *wavOrMp3, uint8_t backGroundReduce)
         }
         //装填 message
         memset(&msg, 0, sizeof(WMix_Msg));
-        msg.type = 3 + backGroundReduce*0x100;
+        msg.type = 3 + backGroundReduce*0x100 + repeatInterval*0x10000;
         //wav路径 + msg路径 
         strcpy((char*)msg.value, wavOrMp3);
         strcpy((char*)&msg.value[strlen(wavOrMp3)+1], msgPath);

@@ -19,7 +19,10 @@ void wmix_play(char *wavOrMp3, uint8_t backGroundReduce);
 //  0: 不启用
 //  >0: 背景音量降低倍数 backGroundVolume/(backGroundReduce+1)
 //注意: 当有进程正在使用backGroundReduce功能时,当前启用无效(先占先得)
-void wmix_play2(char *wavOrMp3, uint8_t backGroundReduce);
+//repeatInterval: 音频重复播放间隔,单位 sec
+//  0: 不启用
+//  >0: 播放结束后间隔 repeatInterval sec 后重播
+void wmix_play2(char *wavOrMp3, uint8_t backGroundReduce, uint8_t repeatInterval);
 
 //播放音频流,用于播放录音
 //成功返回fd(fifo的写入端)  失败返回0

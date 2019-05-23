@@ -43,7 +43,7 @@ void wmix_play(char *wavOrMp3, uint8_t backGroundReduce);
     重复调用该函数播放音频，可实现音频叠加。
 
 
-void wmix_play2(char *wavOrMp3, uint8_t backGroundReduce);
+void wmix_play2(char *wavOrMp3, uint8_t backGroundReduce, uint8_t repeatInterval);
 功能：互斥的播放 wav 或者 mp3 音频文件
 参数：
     wavOrMp3：wav 或者 mp3 音频文件文件路径
@@ -51,9 +51,12 @@ void wmix_play2(char *wavOrMp3, uint8_t backGroundReduce);
         0: 不启用
         >0: 背景音量降低倍数 backGroundVolume/(backGroundReduce+1)
         注意: 当有进程正在使用backGroundReduce功能时,当前启用无效(先占先得)
+    repeatInterval：音频重复播放间隔,单位 sec
+        0: 不启用
+        >0: 播放结束后间隔 repeatInterval 秒后重播
 其他说明：
     1.所谓互斥，即当你播放下一首时，上一首如果没有结束将直接被关闭
-    2.wmix_play2(NULL);可以关闭当前播放
+    2.wmix_play2(NULL, 0, 0);可以关闭当前播放
 
 
 int wmix_stream_open(uint8_t channels, uint8_t sample, uint16_t freq, uint8_t backGroundReduce);

@@ -82,25 +82,25 @@ int main()
             else if(mode == 1)
             {
                 if(input[0] == '1')
-                    wmix_play2("./test.wav", 0);
+                    wmix_play2("./test.wav", 0, 0);
                 else if(input[0] == '2')
-                    wmix_play2("./test2.wav", 0);
+                    wmix_play2("./test2.wav", 0, 0);
                 else if(input[0] == '0')
-                    wmix_play2("./capture.wav", 0);
+                    wmix_play2("./capture.wav", 0, 0);
 
                 else if(input[0] == 'm' && input[1] == '1')
-                    wmix_play2("./music.wav", 0);
+                    wmix_play2("./music.wav", 0, 0);
                 else if(input[0] == 'm' && input[1] == '2')
-                    wmix_play2("./music2.wav", 0);
+                    wmix_play2("./music2.wav", 0, 0);
                 else if(input[0] == 'm' && input[1] == '3')
-                    wmix_play2("./music3.mp3", 0);
+                    wmix_play2("./music3.mp3", 0, 0);
                 else if(input[0] == 'm' && input[1] == '4')
-                    wmix_play2("./music4.mp3", 0);
+                    wmix_play2("./music4.mp3", 0, 0);
                 else if(input[0] == 'm' && input[1] == '5')
-                    wmix_play2("./music5.mp3", 0);
+                    wmix_play2("./music5.mp3", 0, 0);
 
                 else if(input[0] == 'c')
-                    wmix_play2(NULL, 0);
+                    wmix_play2(NULL, 0, 0);
             }
             else if(mode == 2)
             {
@@ -121,6 +121,29 @@ int main()
                     wmix_play("./music4.mp3", 4);
                 else if(input[0] == 'm' && input[1] == '5')
                     wmix_play("./music5.mp3", 4);
+            }
+            else if(mode == 3)
+            {
+                if(input[0] == '1')
+                    wmix_play2("./test.wav", 0, 3);
+                else if(input[0] == '2')
+                    wmix_play2("./test2.wav", 0, 3);
+                else if(input[0] == '0')
+                    wmix_play2("./capture.wav", 0, 3);
+
+                else if(input[0] == 'm' && input[1] == '1')
+                    wmix_play2("./music.wav", 0, 3);
+                else if(input[0] == 'm' && input[1] == '2')
+                    wmix_play2("./music2.wav", 0, 3);
+                else if(input[0] == 'm' && input[1] == '3')
+                    wmix_play2("./music3.mp3", 0, 3);
+                else if(input[0] == 'm' && input[1] == '4')
+                    wmix_play2("./music4.mp3", 0, 3);
+                else if(input[0] == 'm' && input[1] == '5')
+                    wmix_play2("./music5.mp3", 0, 3);
+
+                else if(input[0] == 'c')
+                    wmix_play2(NULL, 0, 0);
             }
             
             //数据流 播放
@@ -144,9 +167,14 @@ int main()
             else if(input[0] == 's')
             {
                 mode += 1;
-                if(mode > 2)
+                if(mode > 3)
                     mode = 0;
-                printf("mode : %d\n", mode);
+                printf("mode : %d  %s\n", mode, 
+                    mode==0?"普通播放模式":(
+                        mode==1?"互斥模式":(
+                            mode==2?"背景reduce模式":"互斥循环播放模式"
+                        )
+                    ));
             }
 
             //复位
