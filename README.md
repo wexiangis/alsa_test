@@ -31,26 +31,26 @@ void wmix_set_volume(uint8_t count, uint8_t div);
     wmix_set_volume(30, 100);//设置 30% 的音量
     
 
-void wmix_play(char *wavOrMp3, uint8_t backGroundReduce);
+void wmix_play(char *wavOrMp3, uint8_t backgroundReduce);
 功能：播放 wav 或者 mp3 音频文件
 参数：
     wavOrMp3：wav 或者 mp3 音频文件文件路径
-    backGroundReduce：播放当前音频时,降低背景音量
+    backgroundReduce：播放当前音频时,降低背景音量
         0: 不启用
-        >0: 背景音量降低倍数 backGroundVolume/(backGroundReduce+1)
-        注意: 当有进程正在使用backGroundReduce功能时,当前启用无效(先占先得)
+        >0: 背景音量降低倍数 backgroundVolume/(backgroundReduce+1)
+        注意: 当有进程正在使用backgroundReduce功能时,当前启用无效(先占先得)
 其他说明：
     重复调用该函数播放音频，可实现音频叠加。
 
 
-void wmix_play2(char *wavOrMp3, uint8_t backGroundReduce, uint8_t repeatInterval);
+void wmix_play2(char *wavOrMp3, uint8_t backgroundReduce, uint8_t repeatInterval);
 功能：互斥的播放 wav 或者 mp3 音频文件
 参数：
     wavOrMp3：wav 或者 mp3 音频文件文件路径
-    backGroundReduce：播放当前音频时,降低背景音量
+    backgroundReduce：播放当前音频时,降低背景音量
         0: 不启用
-        >0: 背景音量降低倍数 backGroundVolume/(backGroundReduce+1)
-        注意: 当有进程正在使用backGroundReduce功能时,当前启用无效(先占先得)
+        >0: 背景音量降低倍数 backgroundVolume/(backgroundReduce+1)
+        注意: 当有进程正在使用backgroundReduce功能时,当前启用无效(先占先得)
     repeatInterval：音频重复播放间隔,单位 sec
         0: 不启用
         >0: 播放结束后间隔 repeatInterval 秒后重播
@@ -59,16 +59,16 @@ void wmix_play2(char *wavOrMp3, uint8_t backGroundReduce, uint8_t repeatInterval
     2.wmix_play2(NULL, 0, 0);可以关闭当前播放
 
 
-int wmix_stream_open(uint8_t channels, uint8_t sample, uint16_t freq, uint8_t backGroundReduce);
+int wmix_stream_open(uint8_t channels, uint8_t sample, uint16_t freq, uint8_t backgroundReduce);
 功能：得到fifo的写fd，写入音频流
 参数：
     channels：通道数，常见值为1和2，即单声道和双声道(立体声)
     sample：采样位宽bit，常见值8、16、32
     freq：采样频率Hz，常见值44100、32000、22050、16000、11025、8000、6000
-    backGroundReduce：播放当前音频时,降低背景音量
+    backgroundReduce：播放当前音频时,降低背景音量
         0: 不启用
-        >0: 背景音量降低倍数 backGroundVolume/(backGroundReduce+1)
-        注意: 当有进程正在使用backGroundReduce功能时,当前启用无效(先占先得)
+        >0: 背景音量降低倍数 backgroundVolume/(backgroundReduce+1)
+        注意: 当有进程正在使用backgroundReduce功能时,当前启用无效(先占先得)
 返回：
     成功返回fifo写fd
     失败返回0
