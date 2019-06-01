@@ -1139,7 +1139,7 @@ void wmix_exit(WMix_Struct *wmix)
     }
 }
 
-static inline int16_t volumeAdd(int16_t L1, int16_t L2)
+static int16_t volumeAdd(int16_t L1, int16_t L2)
 {
     int32_t sum;
     //
@@ -1654,7 +1654,7 @@ typedef struct{
     uint16_t repeat;//repeatInterval*10
 }WMix_Mp3;
 
-inline int16_t mad_scale(mad_fixed_t sample)
+static int16_t mad_scale(mad_fixed_t sample)
 {
     sample += (1L << (MAD_F_FRACBITS - 16));
     if (sample >= MAD_F_ONE)
