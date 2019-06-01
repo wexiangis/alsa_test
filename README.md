@@ -1,4 +1,17 @@
 
+----- 编译说明: -----
+
+
+#编译依赖库(交叉编译自行启用Makefile内的cross)
+make all
+
+#生成目标文件 wmix 和 test
+make
+
+
+----- 生成文件说明: -----
+
+
 wmix
 功能：托管alsa的混音小程序
 编译依赖：
@@ -6,8 +19,8 @@ wmix
     wmix.c/h
     id3.c/h
     mad.h 
-    alsa音频库(ubuntu下使用 sudo apt-get install libalsa* 安装)
-    mad mp3解码库(ubuntu下使用 sudo apt-get install libmad* 安装)
+    alsa音频库
+    mad mp3解码库
 使用：抛到后台运行，用户程序通过使用 wmix_user.c/h 里提供的接口方法即可播放音频
 
 
