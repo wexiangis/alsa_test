@@ -36,6 +36,24 @@ int wmix_stream_open(
     uint16_t freq,
     uint8_t backgroundReduce);
 
+//录音
+//成功返回fd(fifo的读取端)  失败返回0
+//backgroundReduce: 播放当前音频时,降低背景音量
+//  0: 不启用
+//  >0: 背景音量降低倍数 backgroundVolume/(backgroundReduce+1)
+//注意: 当有进程正在使用backgroundReduce功能时,当前启用无效(先占先得)
+int wmix_record_stream_open(
+    uint8_t channels,
+    uint8_t sample,
+    uint16_t freq);
+
+void wmix_record(
+    char *wavPath,
+    uint8_t channels,
+    uint8_t sample,
+    uint16_t freq,
+    uint16_t second);
+
 //复位
 void wmix_reset(void);
 

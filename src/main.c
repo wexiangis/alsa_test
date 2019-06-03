@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 
 #include "wmix_user.h"
+#include "wav.h"
 
 void fun(void)
 {
@@ -44,10 +45,52 @@ void fun(void)
     }
 }
 
+void fun2(void)
+{
+    WAVContainer_t wav;
+    char buff[1024];
+    size_t ret, total = 0;;
+    int fd;
+    int fd_record = wmix_record_stream_open(2, 16, 44100);
+    size_t sum = 2*16/8*44100*5;
+
+    if(fd_record > 0)
+    {
+        fd = open("./capture.wav", O_WRONLY | O_CREAT | O_TRUNC, 0666);
+
+        if(fd <= 0)
+        {
+            close(fd_record);
+            return;
+        }
+        //
+        WAV_Params(&wav, 5, 2, 16, 44100);
+        WAV_WriteHeader(fd, &wav);
+        //
+        while(1)
+        {
+            ret = read(fd_record, buff, 1024);
+            if(ret > 0)
+            {
+                if(write(fd, buff, ret) < 1)
+                    break;
+                total += ret;
+                if(total >= sum)
+                    break;
+            }
+            else
+                break;
+        }
+        //
+        close(fd_record);
+        close(fd);
+        printf("wav write end: %ld\n", total);
+    }
+}
+
 int main()
 {
     int mode = 0;
-    int fd = 0;
     char input[16];
     pthread_t th;
 
@@ -149,13 +192,11 @@ int main()
             //数据流 播放
             if(input[0] == 't' && input[1] == 0)
                 pthread_create(&th, NULL, (void*)&fun, NULL);
-            else if(input[0] == 't' && input[1] == '1')
-                fd = wmix_stream_open(2, 16, 44100, 0);
-            else if(input[0] == 't' && input[1] == '2')
-            {
-                close(fd);
-                fd = 0;
-            }
+
+            else if(input[0] == 'k')
+                pthread_create(&th, NULL, (void*)&fun2, NULL);
+            else if(input[0] == 'l')
+                wmix_record("./capture.wav", 1, 16, 8000, 5);
 
             //设置音量
             else if(input[0] == 'v' && input[1] == '1' && input[2] == '0')

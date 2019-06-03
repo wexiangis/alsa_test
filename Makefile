@@ -1,4 +1,4 @@
-#cross:=arm-linux-gnueabihf
+cross:=arm-linux-gnueabihf
 
 host:=
 cc:=gcc
@@ -16,6 +16,7 @@ obj-wmix+= ./src/wmix.c ./src/wmix.h \
 
 obj-user+= ./src/wmix_user.c \
 		./src/wmix_user.h \
+		./src/wav.c ./src/wav.h \
 		./src/main.c
 
 target:

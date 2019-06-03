@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
@@ -16,7 +17,7 @@
 #define WMIX_MSG_BUFF_SIZE 128
 
 typedef struct{
-    long type;// 1/设置音量 2/播放wav文件 3/stream 4/互斥播放 5/复位
+    long type;// 1/设置音量 2/播放wav文件 3/stream 4/互斥播放 5/复位 6/录音 7/录音至文件
     uint8_t value[WMIX_MSG_BUFF_SIZE];
 }WMix_Msg;
 
@@ -158,6 +159,8 @@ void wmix_play2(char *wavOrMp3, uint8_t backgroundReduce, uint8_t repeatInterval
     }
 }
 
+void signal_get_SIGPIPE(int id){}
+
 int wmix_stream_open(
     uint8_t channels,
     uint8_t sample,
@@ -215,7 +218,96 @@ int wmix_stream_open(
     else
         fd = open(path, O_WRONLY);
     //
+    signal(SIGPIPE, signal_get_SIGPIPE);
+    //
     return fd;
+}
+
+int wmix_record_stream_open(
+    uint8_t channels,
+    uint8_t sample,
+    uint16_t freq)
+{
+    static uint8_t id = 0;
+    //
+    if(!freq || !channels || !sample)
+        return 0;
+    //
+    int fd = 0;
+    int timeout;
+    char *path;
+    WMix_Msg msg;
+    //msg初始化
+    key_t msg_key;
+    int msg_fd;
+    //
+    if((msg_key = ftok(WMIX_MSG_PATH, WMIX_MSG_ID)) == -1){
+        fprintf(stderr, "wmix_stream_init: ftok err\n");
+        return 0;
+    }
+    if((msg_fd = msgget(msg_key, 0666)) == -1){
+        fprintf(stderr, "wmix_stream_init: msgget err\n");
+        return 0;
+    }
+    //路径创建
+    memset(&msg, 0, sizeof(WMix_Msg));
+    path = wmix_auto_path((char*)&msg.value[4], getpid(), id++);
+    // remove(path);
+    //装填 message
+    msg.type = 6;
+    msg.value[0] = channels;
+    msg.value[1] = sample;
+    msg.value[2] = (freq>>8)&0xFF;
+    msg.value[3] = freq&0xFF;
+    //发出
+    msgsnd(msg_fd, &msg, WMIX_MSG_BUFF_SIZE, IPC_NOWAIT);
+    //等待路径创建
+    timeout = 100;//1000ms超时
+    do{
+        if(timeout-- == 0)
+            break;
+        usleep(10000);
+    }while(access(path, F_OK) != 0);
+    //
+    if(access(path, F_OK) != 0){
+        fprintf(stderr, "wmix_stream_init: %s timeout\n", path);
+        return 0;
+    }
+    //
+    fd = open(path, O_RDONLY);
+    //
+    return fd;
+}
+
+void wmix_record(
+    char *wavPath,
+    uint8_t channels,
+    uint8_t sample,
+    uint16_t freq,
+    uint16_t second)
+{
+    if(!wavPath)
+        return;
+    WMix_Msg msg;
+    //msg初始化
+    MSG_INIT();
+    //装填 message
+    memset(&msg, 0, sizeof(WMix_Msg));
+    msg.type = 7;
+    msg.value[0] = channels;
+    msg.value[1] = sample;
+    msg.value[2] = (freq>>8)&0xFF;
+    msg.value[3] = freq&0xFF;
+    msg.value[4] = (second>>8)&0xFF;
+    msg.value[5] = second&0xFF;
+    //
+    if(strlen(wavPath) > WMIX_MSG_BUFF_SIZE - 7){
+        fprintf(stderr, "wmix_play_wav: %s > max len (%d)\n", wavPath, WMIX_MSG_BUFF_SIZE - 7);
+        return ;
+    }
+    strcpy((char*)&msg.value[6], wavPath);
+    //发出
+    msgsnd(msg_fd, &msg, WMIX_MSG_BUFF_SIZE, IPC_NOWAIT);
 }
 
 void wmix_reset(void)

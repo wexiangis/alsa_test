@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
+#include <signal.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <sys/stat.h>
@@ -11,6 +12,10 @@
 #include "wav.h"
 #include "mad.h"
 #include "id3.h"
+
+static uint8_t WMIX_CHANNELS = 2;
+static uint8_t WMIX_SAMPLE = 16;
+static uint16_t WMIX_FREQ = 44100;
 
 /*******************************************************************************
  * 名称: sys_volume_set
@@ -268,7 +273,7 @@ int SNDWAV_SetParams(SNDPCMContainer_t *sndpcm, WAVContainer_t *wav)
     //     sndpcm->buffer_size);
 
     /* Allocate audio data buffer */
-    sndpcm->data_buf = (uint8_t *)malloc(sndpcm->chunk_bytes);
+    sndpcm->data_buf = (uint8_t *)malloc(sndpcm->chunk_bytes+1);
     if (!sndpcm->data_buf) {
         fprintf(stderr, "Error malloc: [data_buf]\n");
         return -1;
@@ -279,45 +284,6 @@ int SNDWAV_SetParams(SNDPCMContainer_t *sndpcm, WAVContainer_t *wav)
 
 /*****************************录音部分********************************************************************/
 
-/*******************************************************************************
- * 名称: SNDWAV_PrepareWAVParams
- * 功能: wav文件录音参数配置
- * 参数: sndpcm ：SNDPCMContainer_t结构体指针
- *      duration_time ： 录音时间 单位：秒
- * 返回: 0：正常 -1:错误
- * 说明: 无
- ******************************************************************************/
-int SNDWAV_PrepareWAVParams(WAVContainer_t *wav,uint32_t duration_time)
-{
-    assert(wav);
-
-    uint16_t channels = DEFAULT_CHANNELS;
-    uint16_t sample_rate = DEFAULT_SAMPLE_RATE;
-    uint16_t sample_length = DEFAULT_SAMPLE_LENGTH;
-    // uint32_t duration_time = DEFAULT_DURATION_TIME;
-
-    /* Const */
-    wav->header.magic = WAV_RIFF;
-    wav->header.type = WAV_WAVE;
-    wav->format.magic = WAV_FMT;
-    wav->format.fmt_size = LE_INT(16);
-    wav->format.format = LE_SHORT(WAV_FMT_PCM);
-    wav->chunk.type = WAV_DATA;
-
-    /* User definition */
-    wav->format.channels = LE_SHORT(channels);
-    wav->format.sample_rate = LE_INT(sample_rate);
-    wav->format.sample_length = LE_SHORT(sample_length);
-
-    /* See format of wav file */
-    wav->format.blocks_align = LE_SHORT(channels * sample_length / 8);
-    wav->format.bytes_p_second = LE_INT((uint16_t)(wav->format.blocks_align) * sample_rate);
-
-    wav->chunk.length = LE_INT(duration_time * (uint32_t)(wav->format.bytes_p_second));
-    wav->header.length = LE_INT((uint32_t)(wav->chunk.length) + sizeof(wav->chunk) + sizeof(wav->format) + sizeof(wav->header) - 8);
-
-    return 0;
-}
 /*******************************************************************************
  * 名称: SNDWAV_Record
  * 功能: wav文件录音
@@ -359,7 +325,7 @@ void SNDWAV_Record(SNDPCMContainer_t *sndpcm, WAVContainer_t *wav, int fd)
  * 返回: 0：正常 -1:错误
  * 说明: 无
  ******************************************************************************/
-int record_wav(char *filename,uint32_t duration_time)
+int record_wav(char *filename,uint32_t duration_time, uint8_t chn, uint8_t sample, uint16_t freq)
 {
     // char *filename;
     char *devicename = "default";
@@ -386,10 +352,7 @@ int record_wav(char *filename,uint32_t duration_time)
         goto Err;
     }
 
-    if (SNDWAV_PrepareWAVParams(&wav,duration_time) < 0) {
-        fprintf(stderr, "Error SNDWAV_PrepareWAVParams\n");
-        goto Err;
-    }
+    WAV_Params(&wav, duration_time, chn, sample, freq);
 
     if (SNDWAV_SetParams(&record, &wav) < 0) {
         fprintf(stderr, "Error set_snd_pcm_params\n");
@@ -415,7 +378,9 @@ Err:
     if (record.handle) snd_pcm_close(record.handle);
     return -1;
 }
+
 /*****************************播放音频部分********************************/
+
 /*******************************************************************************
  * 名称: SNDWAV_P_SaveRead
  * 功能: wav文件数据读取
@@ -682,7 +647,7 @@ int SNDWAV_SetParams2(SNDPCMContainer_t *sndpcm, uint16_t freq, uint8_t channels
     sndpcm->chunk_bytes = sndpcm->chunk_size * sndpcm->bits_per_frame / 8;
 
     printf("\n---- WMix info -----\n   通道数: %d\n   采样率: %d Hz\n   采样位数: %d bit\n   总数据量: -- Bytes\n"
-        "  每次写入帧数: %ld\n   每帧字节数: %ld Bytes\n   每次读写字节数: %ld Bytes\n   缓冲区大小: %ld Bytes\n\n", 
+        "   每次写入帧数: %ld\n   每帧字节数: %ld Bytes\n   每次读写字节数: %ld Bytes\n   缓冲区大小: %ld Bytes\n\n", 
         channels, freq, sample,
         sndpcm->chunk_size,
         sndpcm->bits_per_frame/8,
@@ -690,13 +655,73 @@ int SNDWAV_SetParams2(SNDPCMContainer_t *sndpcm, uint16_t freq, uint8_t channels
         sndpcm->buffer_size);
 
     /* Allocate audio data buffer */
-    sndpcm->data_buf = (uint8_t *)malloc(sndpcm->chunk_bytes);
+    sndpcm->data_buf = (uint8_t *)malloc(sndpcm->chunk_bytes+1);
     if (!sndpcm->data_buf){
         fprintf(stderr, "Error malloc: [data_buf]\n");
         return -1;
     }
 
     return 0;
+}
+
+SNDPCMContainer_t *wmix_alsa_init(uint8_t channels, uint8_t sample, uint16_t freq, char p_or_c)
+{
+    char devicename[] = "default";
+
+    SNDPCMContainer_t *playback = (SNDPCMContainer_t *)calloc(1, sizeof(SNDPCMContainer_t));
+
+	//Creates a new output object using an existing stdio \c FILE pointer.
+	if (snd_output_stdio_attach(&playback->log, stderr, 0) < 0)
+	{
+		fprintf(stderr, "Error snd_output_stdio_attach\n");
+		goto Err;
+	}
+	// 打开PCM，最后一个参数为0意味着标准配置 SND_PCM_ASYNC
+	if (snd_pcm_open(
+        &playback->handle, 
+        devicename, 
+        p_or_c=='c'?SND_PCM_STREAM_CAPTURE:SND_PCM_STREAM_PLAYBACK, 0) < 0)
+	{
+		fprintf(stderr, "Error snd_pcm_open [ %s]\n", devicename);
+		goto Err;
+	}
+	//配置PCM参数
+	if (SNDWAV_SetParams2(playback, freq, channels, sample) < 0)
+	{
+		fprintf(stderr, "Error set_snd_pcm_params\n");
+		goto Err;
+	}
+	snd_pcm_dump(playback->handle, playback->log);
+
+    return playback;
+
+Err:
+
+    if (playback->data_buf)
+        free(playback->data_buf);
+    if (playback->log)
+        snd_output_close(playback->log);
+    if (playback->handle)
+        snd_pcm_close(playback->handle);
+    free(playback);
+
+    return NULL;
+}
+
+void wmix_alsa_release(SNDPCMContainer_t *playback)
+{
+    if(playback)
+    {
+        snd_pcm_drain(playback->handle);
+        //
+        if (playback->data_buf)
+            free(playback->data_buf);
+        if (playback->log)
+            snd_output_close(playback->log);
+        if (playback->handle)
+            snd_pcm_close(playback->handle);
+        free(playback);
+    }
 }
 
 typedef struct{
@@ -754,7 +779,7 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
     //
     if (mkfifo(path, 0666) < 0 && errno != EEXIST)
     {
-        printf("wmix_stream_thread: mkfifo err\n");
+        fprintf(stderr, "wmix_record_stream_thread: mkfifo err\n");
         return;
     }
     //
@@ -843,6 +868,189 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
     //关闭 reduceMode
     if(rdceIsMe)
         wmtp->wmix->reduceMode = 1;
+    free(wmtp);
+}
+
+void signal_get_SIGPIPE(int id){}
+
+void wmix_record_stream_thread(WMixThread_Param *wmtp)
+{
+    char *path = (char*)&wmtp->param[4];
+    //
+    uint8_t chn = wmtp->param[0];
+    uint8_t sample = wmtp->param[1];
+    uint16_t freq = (wmtp->param[2]<<8) | wmtp->param[3];
+    //
+    int fd_write;
+    size_t buffSize, frame_size;
+    //
+    ssize_t ret, total = 0;
+    uint32_t second = 0, bytes_p_second, bpsCount = 0;
+    //
+    SNDPCMContainer_t *record = NULL;
+    //
+    record = wmix_alsa_init(chn, sample, freq, 'c');
+    if(!record){
+        fprintf(stderr, "wmix_record_stream_thread: wmix_alsa_init err\n");
+        return;
+    }
+    //
+    if (mkfifo(path, 0666) < 0 && errno != EEXIST){
+        fprintf(stderr, "wmix_record_stream_thread: mkfifo err\n");
+        return;
+    }
+    //
+    fd_write = open(path, O_WRONLY);
+    //
+    signal(SIGPIPE, signal_get_SIGPIPE);
+    //
+    bytes_p_second = chn*sample/8*freq;
+    buffSize = record->chunk_bytes;
+    frame_size = buffSize/(chn*sample/8);
+    //
+    printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n\n", 
+        path, chn, sample, freq, bytes_p_second);
+    //线程计数
+    wmtp->wmix->thread_count += 1;
+    //
+    while(wmtp->wmix->run)
+    {
+        ret = SNDWAV_ReadPcm(record, frame_size);
+        if(ret == frame_size)
+        {
+            bpsCount += buffSize;
+            total += buffSize;
+            //录制时间
+            if(bpsCount > bytes_p_second)
+            {
+                bpsCount -= bytes_p_second;
+                second = total/bytes_p_second;
+                printf("  %s %02d:%02d\n", path, second/60, second%60);
+            }
+            //
+            if(!wmtp->wmix->run)
+                break;
+            //
+            ret = write(fd_write, record->data_buf, buffSize);
+            if(ret < 0 && errno != EAGAIN)
+                break;
+        }
+        else
+        {
+            fprintf(stderr, "wmix_record_stream_thread: SNDWAV_ReadPcm err %d\n", ret);
+            break;
+        }
+    }
+    //
+    wmix_alsa_release(record);
+    close(fd_write);
+    //
+    printf(">> %s end <<\n", path);
+    //删除文件
+    remove(path);
+    //线程计数
+    wmtp->wmix->thread_count -= 1;
+    //
+    if(wmtp->param)
+        free(wmtp->param);
+    free(wmtp);
+}
+
+void wmix_record_thread(WMixThread_Param *wmtp)
+{
+    char *path = (char*)&wmtp->param[6];
+    //
+    uint8_t chn = wmtp->param[0];
+    uint8_t sample = wmtp->param[1];
+    uint16_t freq = (wmtp->param[2]<<8) | wmtp->param[3];
+    uint16_t duration_time = (wmtp->param[4]<<8) | wmtp->param[5];
+    //
+    size_t frame_size, buffSize;
+    ssize_t ret, total = 0;
+    uint32_t second = 0, bytes_p_second, bpsCount = 0, TOTAL;
+    //
+    int fd;
+    WAVContainer_t wav;
+    SNDPCMContainer_t *record = NULL;
+    //
+    fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    if(fd <= 0){
+        fprintf(stderr, "wmix_record_thread: open %s err\n", path);
+        return;
+    }
+    //
+    WAV_Params(&wav, duration_time, chn, sample, freq);
+    if(WAV_WriteHeader(fd, &wav) < 0){
+        close(fd);
+        fprintf(stderr, "wmix_record_thread: WAV_WriteHeader err\n");
+        return;
+    }
+    //
+    record = wmix_alsa_init(chn, sample, freq, 'c');
+    if(!record){
+        close(fd);
+        fprintf(stderr, "wmix_record_thread: wmix_alsa_init err\n");
+        return;
+    }
+    //
+    bytes_p_second = chn*sample/8*freq;
+    TOTAL = bytes_p_second*duration_time;
+    buffSize = record->chunk_bytes;
+    frame_size = buffSize/(chn*sample/8);
+    //
+    printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   总字节数: %d Bytes\n\n", 
+        path, chn, sample, freq, bytes_p_second, TOTAL);
+    //线程计数
+    wmtp->wmix->thread_count += 1;
+    //
+    while(wmtp->wmix->run)
+    {
+        //最后一帧
+        if(total + buffSize >= TOTAL)
+        {
+            buffSize = TOTAL - total;
+            frame_size = buffSize/(chn*sample/8);
+        }
+        //
+        ret = SNDWAV_ReadPcm(record, frame_size);
+        if(ret == frame_size)
+        {
+            ret = write(fd, record->data_buf, buffSize);
+            if(ret < 0 && errno != EAGAIN)
+            {
+                fprintf(stderr, "wmix_record_thread: write err %d\n", errno);
+                break;
+            }
+            //
+            bpsCount += ret;
+            total += ret;
+            //录制时间
+            if(bpsCount > bytes_p_second)
+            {
+                bpsCount -= bytes_p_second;
+                second = total/bytes_p_second;
+                printf("  %s %02d:%02d\n", path, second/60, second%60);
+            }
+            //
+            if(total >= TOTAL)
+                break;
+        }
+        else
+        {
+            fprintf(stderr, "wmix_record_thread: SNDWAV_ReadPcm err %d\n", ret);
+            break;
+        }
+    }
+    //
+    wmix_alsa_release(record);
+    close(fd);
+    //
+    printf(">> %s end <<\n", path);
+    //线程计数
+    wmtp->wmix->thread_count -= 1;
+    //
+    if(wmtp->param)
+        free(wmtp->param);
     free(wmtp);
 }
 
@@ -962,6 +1170,22 @@ void wmix_msg_thread(WMixThread_Param *wmtp)
                 case 5:
                     wmix->run = 0;
                     break;
+                //录音stream
+                case 6:
+                    wmix_throwOut_thread(wmix, 
+                        msg.type>>8, 
+                        msg.value, 
+                        WMIX_MSG_BUFF_SIZE, 
+                        &wmix_record_stream_thread);
+                    break;
+                //录音至文件
+                case 7:
+                    wmix_throwOut_thread(wmix, 
+                        msg.type>>8, 
+                        msg.value, 
+                        WMIX_MSG_BUFF_SIZE, 
+                        &wmix_record_thread);
+                    break;
             }
             continue;
         }
@@ -1048,33 +1272,13 @@ void wmix_play_thread(WMixThread_Param *wmtp)
 
 WMix_Struct *wmix_init(void)
 {
-    char devicename[] = "default";
 
     WMix_Struct *wmix = NULL;
-    SNDPCMContainer_t *playback = (SNDPCMContainer_t *)calloc(1, sizeof(SNDPCMContainer_t));
 
-	//Creates a new output object using an existing stdio \c FILE pointer.
-	if (snd_output_stdio_attach(&playback->log, stderr, 0) < 0)
-	{
-		fprintf(stderr, "Error snd_output_stdio_attach\n");
-		goto Err;
-	}
-	// 打开PCM，最后一个参数为0意味着标准配置 SND_PCM_ASYNC
-	if (snd_pcm_open(&playback->handle, devicename, SND_PCM_STREAM_PLAYBACK, 0) < 0)
-	{
-		fprintf(stderr, "Error snd_pcm_open [ %s]\n", devicename);
-		goto Err;
-	}
-	//配置PCM参数
-	if (SNDWAV_SetParams2(playback, 
-        WMIX_FREQ, WMIX_CHANNELS, WMIX_SAMPLE) < 0)
-	{
-		fprintf(stderr, "Error set_snd_pcm_params\n");
-		goto Err;
-	}
-	snd_pcm_dump(playback->handle, playback->log);
+	SNDPCMContainer_t *playback = wmix_alsa_init(WMIX_CHANNELS, WMIX_SAMPLE, WMIX_FREQ, 'p');
 
-	// SNDWAV_Play(&playback, &wav, fd);
+    if(!playback)
+        return NULL;
 
     //
 	wmix = (WMix_Struct *)calloc(1, sizeof(WMix_Struct));
@@ -1091,19 +1295,6 @@ WMix_Struct *wmix_init(void)
     wmix_throwOut_thread(wmix, 0, NULL, 0, &wmix_play_thread);
     //
 	return wmix;
-
-Err:
-
-    if (playback->data_buf)
-        free(playback->data_buf);
-    if (playback->log)
-        snd_output_close(playback->log);
-    if (playback->handle)
-        snd_pcm_close(playback->handle);
-    //
-    free(playback);
-
-    return NULL;
 }
 
 void wmix_exit(WMix_Struct *wmix)
@@ -1122,17 +1313,7 @@ void wmix_exit(WMix_Struct *wmix)
         }while(wmix->thread_count > 0);
         //
         if(wmix->playback)
-        {
-	        snd_pcm_drain(wmix->playback->handle);
-            if(wmix->playback->data_buf)
-                free(wmix->playback->data_buf);
-            if(wmix->playback->log)
-                snd_output_close(wmix->playback->log);
-            if(wmix->playback->handle)
-                snd_pcm_close(wmix->playback->handle);
-            //
-            free(wmix->playback);
-        }
+	        wmix_alsa_release(wmix->playback);
         //
         // pthread_mutex_destroy(&wmix->lock);
         free(wmix);
@@ -1911,7 +2092,7 @@ void wmix_load_mp3(
 
 int main(int argc, char **argv)
 {
-    // record_wav("./capture.wav", 5);
+    // record_wav("./capture.wav", 5, 1, 16, 8000);
     WMix_Struct *wmix = wmix_init();
     if(wmix){
         sleep(1);

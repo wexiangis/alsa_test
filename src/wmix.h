@@ -5,11 +5,6 @@
 #include <stdint.h>
 #include <alsa/asoundlib.h>
 
-//默认录音参数
-#define DEFAULT_CHANNELS         (2)   //通道数(channel)：该参数为1表示单声道，2则是立体声。
-#define DEFAULT_SAMPLE_RATE      (44100)//采样率(rate)：每秒钟采样次数，该次数是针对桢而言
-#define DEFAULT_SAMPLE_LENGTH    (16)  //样本长度(sample)：样本是记录音频数据最基本的单位，常见的有8位和16位。
-
 typedef struct SNDPCMContainer {
     snd_pcm_t *handle;
     snd_output_t *log;
@@ -36,13 +31,10 @@ typedef struct SNDPCMContainer {
 #define WMIX_MSG_BUFF_SIZE 128
 
 typedef struct{
-    long type;// 1/设置音量 2/播放wav文件 3/stream 4/互斥播放 5/复位
+    long type;// 1/设置音量 2/播放wav文件 3/stream 4/互斥播放 5/复位 6/录音 7/录音至文件
     uint8_t value[WMIX_MSG_BUFF_SIZE];
 }WMix_Msg;
 
-#define WMIX_CHANNELS 2
-#define WMIX_SAMPLE 16
-#define WMIX_FREQ 44100
 //循环缓冲区大小
 #define WMIX_BUFF_SIZE 524288//512K //1048576//1M
 
@@ -83,7 +75,7 @@ long sys_volume_set(uint8_t count, uint8_t div);
 //播放
 int play_wav(char *filename);
 //录音
-int record_wav(char *filename,uint32_t duration_time);
+int record_wav(char *filename,uint32_t duration_time, uint8_t chn, uint8_t sample, uint16_t freq);
 
 //-------------------- 混音方式播放 --------------------
 

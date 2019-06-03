@@ -156,3 +156,31 @@ int WAV_WriteHeader(int fd, WAVContainer_t *container)
 
     return 0;
 }
+/*******************************************************************************
+ * 名称: WAV_Params
+ * 功能: wav文件录音参数配置
+ * 参数: sndpcm ：SNDPCMContainer_t结构体指针
+ *      duration_time ： 录音时间 单位：秒
+ * 返回: 0：正常 -1:错误
+ * 说明: 无
+ ******************************************************************************/
+void WAV_Params(WAVContainer_t *wav,uint32_t duration_time, uint8_t chn, uint8_t sample, uint16_t freq)
+{
+    if(!wav)
+        return;
+    //写wav文件头
+    wav->header.magic = WAV_RIFF;
+    wav->header.type = WAV_WAVE;
+    wav->format.magic = WAV_FMT;
+    wav->format.fmt_size = 16;
+    wav->format.format = WAV_FMT_PCM;
+    wav->chunk.type = WAV_DATA;
+    wav->format.channels = chn;
+    wav->format.sample_rate = freq;
+    wav->format.sample_length = sample;
+    wav->format.blocks_align = chn*sample/8;
+    wav->format.bytes_p_second = wav->format.blocks_align*freq;
+    wav->chunk.length = duration_time*wav->format.bytes_p_second;
+    wav->header.length = wav->chunk.length + sizeof(wav->chunk) + sizeof(wav->format) + sizeof(wav->header) - 8;
+
+}
