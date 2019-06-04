@@ -1,4 +1,4 @@
-cross:=arm-linux-gnueabihf
+# cross:=arm-linux-gnueabihf
 
 host:=
 cc:=gcc

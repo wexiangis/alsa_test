@@ -68,15 +68,8 @@ void wmix_play(char *wavOrMp3, uint8_t backgroundReduce)
     msgsnd(msg_fd, &msg, WMIX_MSG_BUFF_SIZE, IPC_NOWAIT);
 }
 
-//自动命名: 主路径WMIX_MSG_PATH + fifo + pid + 0~255
-char *wmix_auto_path(char *buff, int pid, uint8_t id)
-{
-    sprintf(buff, "%s/fifo-%05d%03d", WMIX_MSG_PATH, pid, id);
-    return buff;
-}
-
 //自动命名: 主路径WMIX_MSG_PATH + wav + pid + 0~255
-char *wmix_auto_path2(char *buff, int pid, uint8_t id)
+char *wmix_auto_path(char *buff, int pid, uint8_t id)
 {
     sprintf(buff, "%s/wav-%05d%03d", WMIX_MSG_PATH, pid, id);
     return buff;
@@ -94,7 +87,7 @@ void wmix_play2(char *wavOrMp3, uint8_t backgroundReduce, uint8_t repeatInterval
     //
     for(id_f = 0; id_f < id_max; id_f++)
     {
-        wmix_auto_path2(msgPath, getpid(), id_f);
+        wmix_auto_path(msgPath, getpid(), id_f);
         //关闭旧的播放线程
         if(access(msgPath, F_OK) == 0)
         {
@@ -123,7 +116,7 @@ void wmix_play2(char *wavOrMp3, uint8_t backgroundReduce, uint8_t repeatInterval
     //wavOrMp3 == NULL 时关闭播放
     if(wavOrMp3)
     {
-        wmix_auto_path2(msgPath, getpid(), id_w++);
+        wmix_auto_path(msgPath, getpid(), id_w++);
         if(id_w >= id_max)
             id_w = 0;
         //
@@ -159,6 +152,13 @@ void wmix_play2(char *wavOrMp3, uint8_t backgroundReduce, uint8_t repeatInterval
     }
 }
 
+//自动命名: 主路径WMIX_MSG_PATH + fifo + pid + 0~255
+char *wmix_auto_path2(char *buff, int pid, uint8_t id)
+{
+    sprintf(buff, "%s/fifo-%05d%03d", WMIX_MSG_PATH, pid, id);
+    return buff;
+}
+
 void signal_get_SIGPIPE(int id){}
 
 int wmix_stream_open(
@@ -190,7 +190,7 @@ int wmix_stream_open(
     }
     //路径创建
     memset(&msg, 0, sizeof(WMix_Msg));
-    path = wmix_auto_path((char*)&msg.value[4], getpid(), id++);
+    path = wmix_auto_path2((char*)&msg.value[4], getpid(), id++);
     // remove(path);
     //装填 message
     msg.type = 4 + backgroundReduce*0x100;
@@ -223,6 +223,13 @@ int wmix_stream_open(
     return fd;
 }
 
+//自动命名: 主路径WMIX_MSG_PATH + record + pid + 0~255
+char *wmix_auto_path3(char *buff, int pid, uint8_t id)
+{
+    sprintf(buff, "%s/record-%05d%03d", WMIX_MSG_PATH, pid, id);
+    return buff;
+}
+
 int wmix_record_stream_open(
     uint8_t channels,
     uint8_t sample,
@@ -251,7 +258,7 @@ int wmix_record_stream_open(
     }
     //路径创建
     memset(&msg, 0, sizeof(WMix_Msg));
-    path = wmix_auto_path((char*)&msg.value[4], getpid(), id++);
+    path = wmix_auto_path3((char*)&msg.value[4], getpid(), id++);
     // remove(path);
     //装填 message
     msg.type = 6;
