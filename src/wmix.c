@@ -13,10 +13,6 @@
 #include "mad.h"
 #include "id3.h"
 
-static uint8_t WMIX_CHANNELS = 2;
-static uint8_t WMIX_SAMPLE = 16;
-static uint16_t WMIX_FREQ = 44100;
-
 /*******************************************************************************
  * 名称: sys_volume_set
  * 功能: 扬声器音量设置
@@ -871,6 +867,28 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
     free(wmtp);
 }
 
+#define RECORD_DATA_TRANSFER()  \
+if(chn == 1)\
+{\
+    for(count = 0, src.U8 = dist.U8 = record->data_buf; count < frame_size; count++)\
+    {\
+        if(divCount >= 1.0){src.U16++;src.U16++;divCount -= 1.0;}\
+        else{*dist.U16++ = *src.U16++;src.U16++;divCount += divPow;}\
+    }\
+    src.U8 = record->data_buf;\
+    buffSize2 = (size_t)(dist.U16 - src.U16)*2;\
+}\
+else\
+{\
+    for(count = 0, src.U8 = dist.U8 = record->data_buf; count < frame_size; count++)\
+    {\
+        if(divCount >= 1.0){src.U32++;divCount -= 1.0;}\
+        else{*dist.U32++ = *src.U32++;divCount += divPow;}\
+    }\
+    src.U8 = record->data_buf;\
+    buffSize2 = (size_t)(dist.U32 - src.U32)*4;\
+}
+
 void signal_get_SIGPIPE(int id){}
 
 void wmix_record_stream_thread(WMixThread_Param *wmtp)
@@ -881,15 +899,29 @@ void wmix_record_stream_thread(WMixThread_Param *wmtp)
     uint8_t sample = wmtp->param[1];
     uint16_t freq = (wmtp->param[2]<<8) | wmtp->param[3];
     //
-    int fd_write;
-    size_t buffSize, frame_size;
-    //
+    size_t buffSize, buffSize2, frame_size, count;
+    WMix_Point src, dist;
     ssize_t ret, total = 0;
-    uint32_t second = 0, bytes_p_second, bpsCount = 0;
+    uint32_t second = 0, bytes_p_second, bytes_p_second2, bpsCount = 0;
+    float divCount, divPow;
     //
+    int fd_write;
     SNDPCMContainer_t *record = NULL;
     //
-    record = wmix_alsa_init(chn, sample, freq, 'c');
+    if(freq > WMIX_FREQ){
+        fprintf(stderr, "wmix_record_stream_thread: freq err, %dHz > %dHz\n", freq, WMIX_FREQ);
+        return;
+    }
+    if(sample != WMIX_SAMPLE){
+        fprintf(stderr, "wmix_record_stream_thread: sample err, must be %dbit\n", WMIX_SAMPLE);
+        return;
+    }
+    if(chn != 1 && chn != 2){
+        fprintf(stderr, "wmix_record_stream_thread: channels err, must be 1 or 2\n");
+        return;
+    }
+    //
+    record = wmix_alsa_init(WMIX_CHANNELS, WMIX_SAMPLE, WMIX_FREQ, 'c');
     if(!record){
         fprintf(stderr, "wmix_record_stream_thread: wmix_alsa_init err\n");
         return;
@@ -904,12 +936,16 @@ void wmix_record_stream_thread(WMixThread_Param *wmtp)
     //
     signal(SIGPIPE, signal_get_SIGPIPE);
     //
-    bytes_p_second = chn*sample/8*freq;
+    bytes_p_second = WMIX_CHANNELS*WMIX_SAMPLE/8*WMIX_FREQ;
+    bytes_p_second2 = chn*sample/8*freq;
     buffSize = record->chunk_bytes;
-    frame_size = buffSize/(chn*sample/8);
+    frame_size = buffSize/(WMIX_CHANNELS*WMIX_SAMPLE/8);
     //
-    printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n\n", 
-        path, chn, sample, freq, bytes_p_second);
+    divPow = (float)(WMIX_FREQ - freq)/freq;
+    divCount = 0;
+    //
+    printf("<< %s record >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   时间长度: -- sec\n\n", 
+        path, chn, sample, freq, bytes_p_second2);
     //线程计数
     wmtp->wmix->thread_count += 1;
     //
@@ -930,8 +966,10 @@ void wmix_record_stream_thread(WMixThread_Param *wmtp)
             //
             if(!wmtp->wmix->run)
                 break;
+            //不同频率和通道数的数据处理
+            RECORD_DATA_TRANSFER();
             //
-            ret = write(fd_write, record->data_buf, buffSize);
+            ret = write(fd_write, record->data_buf, buffSize2);
             if(ret < 0 && errno != EAGAIN)
                 break;
         }
@@ -965,13 +1003,28 @@ void wmix_record_thread(WMixThread_Param *wmtp)
     uint16_t freq = (wmtp->param[2]<<8) | wmtp->param[3];
     uint16_t duration_time = (wmtp->param[4]<<8) | wmtp->param[5];
     //
-    size_t frame_size, buffSize;
+    size_t buffSize, buffSize2, frame_size, count;
+    WMix_Point src, dist;
     ssize_t ret, total = 0;
-    uint32_t second = 0, bytes_p_second, bpsCount = 0, TOTAL;
+    uint32_t second = 0, bytes_p_second, bytes_p_second2, bpsCount = 0, TOTAL;
+    float divCount, divPow;
     //
     int fd;
     WAVContainer_t wav;
     SNDPCMContainer_t *record = NULL;
+    //
+    if(freq > WMIX_FREQ){
+        fprintf(stderr, "wmix_record_thread: freq err, %dHz > %dHz\n", freq, WMIX_FREQ);
+        return;
+    }
+    if(sample != WMIX_SAMPLE){
+        fprintf(stderr, "wmix_record_thread: sample err, must be %dbit\n", WMIX_SAMPLE);
+        return;
+    }
+    if(chn != 1 && chn != 2){
+        fprintf(stderr, "wmix_record_thread: channels err, must be 1 or 2\n");
+        return;
+    }
     //
     fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if(fd <= 0){
@@ -986,20 +1039,24 @@ void wmix_record_thread(WMixThread_Param *wmtp)
         return;
     }
     //
-    record = wmix_alsa_init(chn, sample, freq, 'c');
+    record = wmix_alsa_init(WMIX_CHANNELS, WMIX_SAMPLE, WMIX_FREQ, 'c');
     if(!record){
         close(fd);
         fprintf(stderr, "wmix_record_thread: wmix_alsa_init err\n");
         return;
     }
     //
-    bytes_p_second = chn*sample/8*freq;
-    TOTAL = bytes_p_second*duration_time;
+    bytes_p_second = WMIX_CHANNELS*WMIX_SAMPLE/8*WMIX_FREQ;
+    bytes_p_second2 = chn*sample/8*freq;
     buffSize = record->chunk_bytes;
-    frame_size = buffSize/(chn*sample/8);
+    frame_size = buffSize/(WMIX_CHANNELS*WMIX_SAMPLE/8);
+    TOTAL = bytes_p_second*duration_time;
     //
-    printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   总字节数: %d Bytes\n\n", 
-        path, chn, sample, freq, bytes_p_second, TOTAL);
+    divPow = (float)(WMIX_FREQ - freq)/freq;
+    divCount = 0;
+    //
+    printf("<< %s record >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   时间长度: %d sec\n\n", 
+        path, chn, sample, freq, bytes_p_second2, duration_time);
     //线程计数
     wmtp->wmix->thread_count += 1;
     //
@@ -1009,27 +1066,33 @@ void wmix_record_thread(WMixThread_Param *wmtp)
         if(total + buffSize >= TOTAL)
         {
             buffSize = TOTAL - total;
-            frame_size = buffSize/(chn*sample/8);
+            frame_size = buffSize/(WMIX_CHANNELS*WMIX_SAMPLE/8);
         }
         //
         ret = SNDWAV_ReadPcm(record, frame_size);
         if(ret == frame_size)
         {
-            ret = write(fd, record->data_buf, buffSize);
-            if(ret < 0 && errno != EAGAIN)
-            {
-                fprintf(stderr, "wmix_record_thread: write err %d\n", errno);
-                break;
-            }
             //
-            bpsCount += ret;
-            total += ret;
+            bpsCount += buffSize;
+            total += buffSize;
             //录制时间
             if(bpsCount > bytes_p_second)
             {
                 bpsCount -= bytes_p_second;
                 second = total/bytes_p_second;
                 printf("  %s %02d:%02d\n", path, second/60, second%60);
+            }
+            //
+            if(!wmtp->wmix->run)
+                break;
+            //不同频率和通道数的数据处理
+            RECORD_DATA_TRANSFER();
+            //
+            ret = write(fd, record->data_buf, buffSize2);
+            if(ret < 0 && errno != EAGAIN)
+            {
+                fprintf(stderr, "wmix_record_thread: write err %d\n", errno);
+                break;
             }
             //
             if(total >= TOTAL)
@@ -1387,13 +1450,13 @@ WMix_Point wmix_load_wavStream(
     else
     {
         //频率差
-        int32_t freqErr = freq - WMIX_FREQ;
+        int32_t freqErr = WMIX_FREQ - freq;
         //步差计数 和 步差分量
         float divCount, divPow;
         //音频频率大于默认频率 //--- 重复代码比较多且使用可能极小,为减小函数入栈容量,不写了 ---
-        if(freqErr > 0)
+        if(freqErr < 0)
         {
-            divPow = (float)freqErr/freq;
+            divPow = (float)(-freqErr)/freq;
             //
             switch(sample)
             {
@@ -1479,7 +1542,7 @@ WMix_Point wmix_load_wavStream(
         //音频频率小于等于默认频率
         else
         {
-            divPow = (float)(-freqErr)/freq;
+            divPow = (float)freqErr/freq;
             //
             // printf("smallFreq: head = %ld , divPow = %f, divCount = %f, freqErr/%d, freq/%d\n", 
             //     pHead.U8 - wmix->start.U8,

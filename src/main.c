@@ -47,12 +47,18 @@ void fun(void)
 
 void fun2(void)
 {
+    uint8_t chn = 2;
+    uint8_t sample = 16;
+    uint16_t freq = 16000;
+    uint16_t second = 5;
+    //
     WAVContainer_t wav;
     char buff[1024];
-    size_t ret, total = 0;;
+    size_t ret, total = 0;
     int fd;
-    int fd_record = wmix_record_stream_open(2, 16, 44100);
-    size_t sum = 2*16/8*44100*5;
+    //
+    int fd_record = wmix_record_stream_open(chn, sample, freq);
+    size_t sum = chn*sample/8*freq*second;
 
     if(fd_record > 0)
     {
@@ -64,12 +70,12 @@ void fun2(void)
             return;
         }
         //
-        WAV_Params(&wav, 5, 2, 16, 44100);
+        WAV_Params(&wav, second, chn, sample, freq);
         WAV_WriteHeader(fd, &wav);
         //
         while(1)
         {
-            ret = read(fd_record, buff, 1024);
+            ret = read(fd_record, buff, sizeof(buff));
             if(ret > 0)
             {
                 if(write(fd, buff, ret) < 1)
@@ -193,10 +199,11 @@ int main()
             if(input[0] == 't' && input[1] == 0)
                 pthread_create(&th, NULL, (void*)&fun, NULL);
 
+            //录音
             else if(input[0] == 'k')
-                pthread_create(&th, NULL, (void*)&fun2, NULL);
+                pthread_create(&th, NULL, (void*)&fun2, NULL);//获取数据流
             else if(input[0] == 'l')
-                wmix_record("./capture.wav", 1, 16, 8000, 5);
+                wmix_record("./capture.wav", 1, 16, 8000, 5);//录至文件
 
             //设置音量
             else if(input[0] == 'v' && input[1] == '1' && input[2] == '0')

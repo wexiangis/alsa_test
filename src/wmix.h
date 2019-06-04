@@ -30,6 +30,10 @@ typedef struct SNDPCMContainer {
 #define WMIX_MSG_ID   'w'
 #define WMIX_MSG_BUFF_SIZE 128
 
+#define WMIX_CHANNELS   2
+#define WMIX_SAMPLE     16
+#define WMIX_FREQ       44100
+
 typedef struct{
     long type;// 1/设置音量 2/播放wav文件 3/stream 4/互斥播放 5/复位 6/录音 7/录音至文件
     uint8_t value[WMIX_MSG_BUFF_SIZE];
