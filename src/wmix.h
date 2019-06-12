@@ -47,9 +47,9 @@ typedef union
     int8_t *S8;
     uint8_t *U8;
     int16_t *S16;
-    int16_t *U16;
+    uint16_t *U16;
     int32_t *S32;
-    int32_t *U32;
+    uint32_t *U32;
 }WMix_Point;
 
 typedef struct{
