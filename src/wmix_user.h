@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //设置音量 count/div 例如: 30% -> 30/100
 //count: 音量  div: 分度
 void wmix_set_volume(uint8_t count, uint8_t div);
@@ -56,5 +60,9 @@ void wmix_record(
 
 //复位
 void wmix_reset(void);
+
+#ifdef __cplusplus
+};
+#endif
 
 #endif

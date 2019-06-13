@@ -2154,7 +2154,7 @@ int main(int argc, char **argv)
 {
     //录音/播音测试
     // printf("record_wav ...\n");
-    // record_wav("./capture.wav", 5, 2, 16, 8000);
+    // record_wav("./capture.wav", 5, 1, 16, 8000);
     // printf("play_wav ...\n");
     // play_wav("./capture.wav");
     //
