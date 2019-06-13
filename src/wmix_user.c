@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <signal.h>
+#include <pthread.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
@@ -161,6 +162,11 @@ char *wmix_auto_path2(char *buff, int pid, uint8_t id)
 
 void signal_get_SIGPIPE(int id){}
 
+void _tmp_callback(char *path)
+{
+    open(path, O_RDONLY | O_NONBLOCK);//防止下面的写open阻塞
+}
+
 int wmix_stream_open(
     uint8_t channels,
     uint8_t sample,
@@ -213,10 +219,22 @@ int wmix_stream_open(
         return 0;
     }
     //
+#if 1//用线程代替fork
+    pthread_t th;
+    pthread_attr_t attr;
+    //attr init
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);//禁用线程同步, 线程运行结束后自动释放
+    //抛出线程
+    pthread_create(&th, &attr, (void*)&_tmp_callback, (void*)path);
+    //attr destroy
+    pthread_attr_destroy(&attr);
+#else
     if(fork() == 0)
         open(path, O_RDONLY | O_NONBLOCK);//防止下面的写阻塞打不开
     else
-        fd = open(path, O_WRONLY);
+#endif
+    fd = open(path, O_WRONLY);
     //
     signal(SIGPIPE, signal_get_SIGPIPE);
     //

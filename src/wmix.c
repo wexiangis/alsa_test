@@ -642,14 +642,6 @@ int SNDWAV_SetParams2(SNDPCMContainer_t *sndpcm, uint16_t freq, uint8_t channels
     sndpcm->bits_per_frame = sndpcm->bits_per_sample * channels;
     sndpcm->chunk_bytes = sndpcm->chunk_size * sndpcm->bits_per_frame / 8;
 
-    printf("\n---- WMix info -----\n   通道数: %d\n   采样率: %d Hz\n   采样位数: %d bit\n   总数据量: -- Bytes\n"
-        "   每次写入帧数: %ld\n   每帧字节数: %ld Bytes\n   每次读写字节数: %ld Bytes\n   缓冲区大小: %ld Bytes\n\n", 
-        channels, freq, sample,
-        sndpcm->chunk_size,
-        sndpcm->bits_per_frame/8,
-        sndpcm->chunk_bytes,
-        sndpcm->buffer_size);
-
     /* Allocate audio data buffer */
     sndpcm->data_buf = (uint8_t *)malloc(sndpcm->chunk_bytes+1);
     if (!sndpcm->data_buf){
@@ -1335,14 +1327,11 @@ void wmix_play_thread(WMixThread_Param *wmtp)
 
 WMix_Struct *wmix_init(void)
 {
-
     WMix_Struct *wmix = NULL;
-
 	SNDPCMContainer_t *playback = wmix_alsa_init(WMIX_CHANNELS, WMIX_SAMPLE, WMIX_FREQ, 'p');
-
+    //
     if(!playback)
         return NULL;
-
     //
 	wmix = (WMix_Struct *)calloc(1, sizeof(WMix_Struct));
     wmix->buff = (uint8_t *)calloc(WMIX_BUFF_SIZE+4, sizeof(uint8_t));
@@ -1356,6 +1345,14 @@ WMix_Struct *wmix_init(void)
     wmix->reduceMode = 1;
     wmix_throwOut_thread(wmix, 0, NULL, 0, &wmix_msg_thread);
     wmix_throwOut_thread(wmix, 0, NULL, 0, &wmix_play_thread);
+    //
+    printf("\n---- WMix info -----\n   通道数: %d\n   采样率: %d Hz\n   采样位数: %d bit\n   总数据量: -- Bytes\n"
+        "   每次写入帧数: %ld\n   每帧字节数: %ld Bytes\n   每次读写字节数: %ld Bytes\n   缓冲区大小: %ld Bytes\n\n", 
+        WMIX_CHANNELS, WMIX_FREQ, WMIX_SAMPLE,
+        playback->chunk_size,
+        playback->bits_per_frame/8,
+        playback->chunk_bytes,
+        playback->buffer_size);
     //
 	return wmix;
 }
@@ -2155,7 +2152,12 @@ void wmix_load_mp3(
 
 int main(int argc, char **argv)
 {
-    // record_wav("./capture.wav", 5, 1, 16, 8000);
+    //录音/播音测试
+    // printf("record_wav ...\n");
+    // record_wav("./capture.wav", 5, 2, 16, 8000);
+    // printf("play_wav ...\n");
+    // play_wav("./capture.wav");
+    //
     WMix_Struct *wmix = wmix_init();
     if(wmix){
         sleep(1);
