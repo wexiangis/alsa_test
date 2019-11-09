@@ -1287,12 +1287,21 @@ void wmix_play_thread(WMixThread_Param *wmtp)
             for(count = 0, dist.U8 = playback->data_buf; 
                 wmix->head.U8 != tail.U8;)
             {
+#if(WMIX_CHANNELS == 1)
+                if(wmix->head.U16 >= wmix->end.U16)
+                    wmix->head.U16 = wmix->start.U16;
+                //每次拷贝 2字节
+                *dist.U16++ = *wmix->head.U16;
+                *wmix->head.U16++ = 0;
+                count += 2;
+#else
                 if(wmix->head.U32 >= wmix->end.U32)
                     wmix->head.U32 = wmix->start.U32;
                 //每次拷贝 4字节
                 *dist.U32++ = *wmix->head.U32;
                 *wmix->head.U32++ = 0;
                 count += 4;
+#endif
                 //
                 if(count == playback->chunk_bytes)
                 {
@@ -1433,11 +1442,16 @@ WMix_Point wmix_load_wavStream(
             *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
             pHead.S16++;
             pSrc.S16++;
+#if(WMIX_CHANNELS == 1)
+            //
+            count += 2;
+#else
             *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
             pHead.S16++;
             pSrc.S16++;
             //
             count += 4;
+#endif
             //循环处理
             if(pHead.S16 >= wmix->end.S16)
                 pHead.S16 = wmix->start.S16;
@@ -1484,8 +1498,10 @@ WMix_Point wmix_load_wavStream(
                                 *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
                                 pSrc.S16++;
+#if(WMIX_CHANNELS != 1)
                                 *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
+#endif
                                 pSrc.S16++;
                                 //
                                 divCount += divPow;
@@ -1515,8 +1531,10 @@ WMix_Point wmix_load_wavStream(
                                 *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
                                 // pSrc.S16++;
+#if(WMIX_CHANNELS != 1)
                                 *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
+#endif
                                 pSrc.S16++;
                                 //
                                 divCount += divPow;
@@ -1566,8 +1584,10 @@ WMix_Point wmix_load_wavStream(
                                 //循环缓冲区指针继续移动,pSrc指针不动
                                 *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
+#if(WMIX_CHANNELS != 1)
                                 *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
+#endif
                                 //
                                 divCount -= 1.0;
                             }
@@ -1577,8 +1597,10 @@ WMix_Point wmix_load_wavStream(
                                 *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
                                 pSrc.S16++;
+#if(WMIX_CHANNELS != 1)
                                 *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
+#endif
                                 pSrc.S16++;
                                 //
                                 divCount += divPow;
@@ -1599,8 +1621,10 @@ WMix_Point wmix_load_wavStream(
                                 //拷贝一帧数据 pSrc指针不动
                                 *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
+#if(WMIX_CHANNELS != 1)
                                 *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
+#endif
                                 //
                                 divCount -= 1.0;
                             }
@@ -1610,8 +1634,10 @@ WMix_Point wmix_load_wavStream(
                                 *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
                                 // pSrc.S16++;
+#if(WMIX_CHANNELS != 1)
                                 *pHead.S16 = volumeAdd(*pHead.S16, *pSrc.S16/(*rdce));
                                 pHead.S16++;
+#endif
                                 pSrc.S16++;
                                 //
                                 divCount += divPow;

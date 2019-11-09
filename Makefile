@@ -1,4 +1,5 @@
-# cross:=arm-linux-gnueabihf
+#cross:=arm-linux-gnueabihf
+#cross:=arm-himix100-linux
 
 host:=
 cc:=gcc
@@ -48,5 +49,5 @@ alsa:
 clean:
 	@rm -rf ./test ./wmix
 
-cleanAll :
+cleanall :
 	@rm -rf ./test ./wmix ./libs/* -rf
