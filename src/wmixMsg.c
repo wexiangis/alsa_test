@@ -8,15 +8,15 @@ void help(char *argv0)
 {
     printf(
         "\n"
-        "Usage: %s [option]\n"
+        "Usage: %s [option] WavOrMp3File\n"
         "\n"
         "Opition:\n"
-        // "  -m mode : 0混音模式(默认),1互斥模式\n"
+        "  -b : 打断模式(不设置时为混音模式)\n"
         "  -t interval : 循环播放模式,间隔秒,取值[1~255]\n"
         "  -d reduce : 背景音削减倍数,取值[1~255]\n"
         "  -v volume : 音量设置0~10\n"
-        "  -k id : 关闭闭指定id的语音\n"
-        "  -r : 重置播放器,关闭所有音频\n"
+        "  -k id : 关闭闭指定id的语音,id=0时关闭所有\n"
+        "  -r : 重置播放器\n"
         "  -? --help : 显示帮助\n"
         "\n"
         "其它说明:\n"
@@ -27,9 +27,10 @@ void help(char *argv0)
         "\n"
         "Example:\n"
         "  %s -v 10\n"
-        "  %s -m 0 ./music.mp3\n"
+        "  %s ./music.wav\n"
+        "  %s ./music.wav -t 1\n"
         "\n"
-        ,argv0, WMIX_VERSION, argv0, argv0);
+        ,argv0, WMIX_VERSION, argv0, argv0, argv0);
 }
 
 int main(int argc, char **argv)
@@ -40,7 +41,8 @@ int main(int argc, char **argv)
     int reduce = 0;
     int volume = -1;
     int reset = 0;
-    int id = 0;
+    int id = -1;
+    bool breakall = false;
     char *filePath = NULL;
     char tmpPath[128] = {0};
     char tmpPath2[128] = {0};
@@ -57,11 +59,10 @@ int main(int argc, char **argv)
         {
             reset = 1; 
         }   
-        // else if(strlen(argv[i]) == 2 && strstr(argv[i], "-m") && i+1 < argc)
-        // {
-        //     i += 1;
-        //     sscanf(argv[i], "%d", &mode);
-        // }
+        else if(strlen(argv[i]) == 2 && strstr(argv[i], "-b"))
+        {
+            breakall = true; 
+        }
         else if(strlen(argv[i]) == 2 && strstr(argv[i], "-t") && i+1 < argc)
         {
             i += 1;
@@ -100,13 +101,13 @@ int main(int argc, char **argv)
             return 0;
     }
 
-    if(id > 0)
+    if(id >= 0)
     {
-        wmix_play_exit(id);
+        wmix_play_kill(id);
         if(filePath == NULL)
             return 0;
-        id = 0;
     }
+    id = 0;
 
     if(reset)
     {
@@ -132,12 +133,9 @@ int main(int argc, char **argv)
         }
     }
 
-    // if(mode == 0 && interval == 0)
-    //     id = wmix_play(filePath, reduce);
-    // else
-        id = wmix_play2(filePath, reduce, interval);
-
-    printf("id: %d\n", id);
+    id = wmix_play(filePath, reduce, interval, breakall);
+    if(id > 0)
+        printf("id: %d\n", id);
 
     return id;
 }
