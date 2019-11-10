@@ -15,6 +15,10 @@ obj-wmix+= ./src/wmix.c ./src/wmix.h \
 		./src/wav.c ./src/wav.h \
 		./src/id3.c ./src/id3.h
 
+obj-wmixmsg+= ./src/wmix_user.c \
+		./src/wmix_user.h \
+		./src/wmixMsg.c
+
 obj-user+= ./src/wmix_user.c \
 		./src/wmix_user.h \
 		./src/wav.c ./src/wav.h \
@@ -22,6 +26,7 @@ obj-user+= ./src/wmix_user.c \
 
 target:
 	@$(cc) -Wall -o wmix $(obj-wmix) -L./libs/lib -I./libs/include -lpthread -lasound -lm -ldl -lmad
+	@$(cc) -Wall -o wmixMsg $(obj-wmixmsg) -lpthread
 	@$(cc) -Wall -o test $(obj-user) -lpthread
 
 all: dpkg-alsa alsa dpkg-mad mad
@@ -47,7 +52,7 @@ alsa:
 	cd -
 
 clean:
-	@rm -rf ./test ./wmix
+	@rm -rf ./test ./wmix ./wmixMsg
 
 cleanall :
-	@rm -rf ./test ./wmix ./libs/* -rf
+	@rm -rf ./test ./wmix ./wmixMsg ./libs/* -rf

@@ -101,7 +101,6 @@ void fun3(void)
     uint16_t freq = 16000;
     uint16_t second = 10;
     //
-    WAVContainer_t wav;
     char buff[1024];
     size_t ret, total = 0;
     //

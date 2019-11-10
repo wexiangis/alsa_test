@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <alsa/asoundlib.h>
 
 typedef struct SNDPCMContainer {
@@ -24,6 +25,8 @@ typedef struct SNDPCMContainer {
 #include <pthread.h>
 #include <sys/ipc.h>
 
+#define WMIX_VERSION "V2.0 - 20191110"
+
 #define WMIX_MSG_PATH "/tmp/wmix"
 #define WMIX_MSG_PATH_CLEAR "rm -rf /tmp/wmix/*"
 #define WMIX_MSG_PATH_AUTHORITY "chmod 777 /tmp/wmix -R"
@@ -35,7 +38,11 @@ typedef struct SNDPCMContainer {
 #define WMIX_FREQ       44100
 
 typedef struct{
-    long type;// 1/设置音量 2/播放wav文件 3/stream 4/互斥播放 5/复位 6/录音 7/录音至文件
+    //type[0,7]: 1/设置音量 2/播放wav文件 3/stream 4/互斥播放 5/复位 6/录音 7/录音至文件
+    //type[8,15]: reduce
+    //type[16,23]: repeatInterval
+    long type;
+    //value: filePath + '\0' + msgPath
     uint8_t value[WMIX_MSG_BUFF_SIZE];
 }WMix_Msg;
 
@@ -69,6 +76,8 @@ typedef struct{
     int msg_fd;
     //
     uint8_t reduceMode;
+    //
+    bool debug;
 }WMix_Struct;
 
 //设置音量

@@ -3,6 +3,7 @@
 #include <string.h>
 #include <errno.h>
 #include <signal.h>
+#include <fcntl.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <sys/stat.h>
@@ -12,6 +13,15 @@
 #include "wav.h"
 #include "mad.h"
 #include "id3.h"
+
+static WMix_Struct *main_wmix = NULL;
+
+static void signal_callback(int signo)
+{
+    if (SIGINT == signo || SIGTERM == signo)
+        wmix_exit(main_wmix);
+    exit(0);
+}
 
 /*******************************************************************************
  * 名称: sys_volume_set
@@ -106,7 +116,7 @@ int SNDWAV_ReadPcm(SNDPCMContainer_t *sndpcm, size_t rcount)
             snd_pcm_wait(sndpcm->handle, 1000);
         } else if (r == -EPIPE) {
             snd_pcm_prepare(sndpcm->handle);
-            fprintf(stderr, "Error: Buffer Underrun\n");
+            // fprintf(stderr, "Error: Buffer Underrun\n");
         } else if (r == -ESTRPIPE) {
             fprintf(stderr, "Error: Need suspend\n");
         } else if (r < 0) {
@@ -148,7 +158,7 @@ int SNDWAV_WritePcm(SNDPCMContainer_t *sndpcm, size_t wcount)
             snd_pcm_wait(sndpcm->handle, 1000);
         } else if (r == -EPIPE) {
             snd_pcm_prepare(sndpcm->handle);
-            fprintf(stderr, "Error: Buffer Underrun\n");
+            // fprintf(stderr, "Error: Buffer Underrun\n");
         } else if (r == -ESTRPIPE) {
             fprintf(stderr, "Error: Need suspend\n");
         } else if (r < 0) {
@@ -789,7 +799,7 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
     bytes_p_second2 = WMIX_CHANNELS*WMIX_SAMPLE/8*WMIX_FREQ;
     buffSizePow = (double)bytes_p_second2/bytes_p_second;
     //
-    printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n\n", 
+    if(wmtp->wmix->debug) printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n\n", 
         path, chn, sample, freq, bytes_p_second);
     //
     src.U8 = buff;
@@ -826,7 +836,7 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
             {
                 bpsCount -= bytes_p_second;
                 second = total/bytes_p_second;
-                printf("  %s %02d:%02d\n", path, second/60, second%60);
+                if(wmtp->wmix->debug) printf("  %s %02d:%02d\n", path, second/60, second%60);
             }
             continue;
         }
@@ -841,7 +851,7 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
     //     get_tick_err(wmtp->wmix->tick, tick) < total2)
     //     usleep(1000);
     //
-    printf(">> %s end <<\n", path);
+    if(wmtp->wmix->debug) printf(">> %s end <<\n", path);
     //
     close(fd_read);
     //删除文件
@@ -1109,53 +1119,47 @@ void wmix_record_thread(WMixThread_Param *wmtp)
     free(wmtp);
 }
 
+void _wmix_load_wav_mp3_thread(WMixThread_Param *wmtp, char mode)
+{
+    char *name = (char*)wmtp->param;
+    uint16_t len = strlen((char*)wmtp->param);
+    //线程计数
+    wmtp->wmix->thread_count += 1;
+    if(len > 3 &&
+        (name[len-3] == 'm' || name[len-3] == 'M') &&
+        (name[len-2] == 'p' || name[len-2] == 'P') &&
+        name[len-1] == '3')
+    {
+        if(mode == 0)
+            wmix_load_mp3(wmtp->wmix, name, NULL, wmtp->flag&0xFF, (wmtp->flag>>8)&0xFF);
+        else
+            wmix_load_mp3(wmtp->wmix, name, (char*)&wmtp->param[len+1], wmtp->flag&0xFF, (wmtp->flag>>8)&0xFF);
+    }
+    else
+    {
+        if(mode == 0)
+            wmix_load_wav(wmtp->wmix, name, NULL, wmtp->flag&0xFF, (wmtp->flag>>8)&0xFF);
+        else
+            wmix_load_wav(wmtp->wmix, name, (char*)&wmtp->param[len+1], wmtp->flag&0xFF, (wmtp->flag>>8)&0xFF);
+    }
+    //线程计数
+    wmtp->wmix->thread_count -= 1;
+    //
+    if(wmtp->param)
+        free(wmtp->param);
+    free(wmtp);
+}
 void wmix_load_wav_mp3_thread(WMixThread_Param *wmtp)
-{
-    char *name = (char*)wmtp->param;
-    uint16_t len = strlen((char*)wmtp->param);
-    //线程计数
-    wmtp->wmix->thread_count += 1;
-    if(len > 3 &&
-        (name[len-3] == 'm' || name[len-3] == 'M') &&
-        (name[len-2] == 'p' || name[len-2] == 'P') &&
-        name[len-1] == '3')
-        wmix_load_mp3(wmtp->wmix, name, NULL, wmtp->flag&0xFF, (wmtp->flag>>8)&0xFF);
-    else
-        wmix_load_wav(wmtp->wmix, name, NULL, wmtp->flag&0xFF, (wmtp->flag>>8)&0xFF);
-    //线程计数
-    wmtp->wmix->thread_count -= 1;
-    //
-    if(wmtp->param)
-        free(wmtp->param);
-    free(wmtp);
-}
-
-void wmix_load_wav_mp3_2_thread(WMixThread_Param *wmtp)
-{
-    char *name = (char*)wmtp->param;
-    uint16_t len = strlen((char*)wmtp->param);
-    //线程计数
-    wmtp->wmix->thread_count += 1;
-    if(len > 3 &&
-        (name[len-3] == 'm' || name[len-3] == 'M') &&
-        (name[len-2] == 'p' || name[len-2] == 'P') &&
-        name[len-1] == '3')
-        wmix_load_mp3(wmtp->wmix, name, (char*)&wmtp->param[len+1], wmtp->flag&0xFF, (wmtp->flag>>8)&0xFF);
-    else
-        wmix_load_wav(wmtp->wmix, name, (char*)&wmtp->param[len+1], wmtp->flag&0xFF, (wmtp->flag>>8)&0xFF);
-    //线程计数
-    wmtp->wmix->thread_count -= 1;
-    //
-    if(wmtp->param)
-        free(wmtp->param);
-    free(wmtp);
-}
+{_wmix_load_wav_mp3_thread(wmtp, 0);}
+void wmix_load_wav_mp3_thread2(WMixThread_Param *wmtp)
+{_wmix_load_wav_mp3_thread(wmtp, 1);}
 
 void wmix_msg_thread(WMixThread_Param *wmtp)
 {
     WMix_Struct *wmix = wmtp->wmix;
     WMix_Msg msg;
     ssize_t ret;
+    bool err_exit = false;
 
     //路径检查 //F_OK 是否存在 R_OK 是否有读权限 W_OK 是否有写权限 X_OK 是否有执行权限
     if(access(WMIX_MSG_PATH, F_OK) != 0)
@@ -1203,7 +1207,7 @@ void wmix_msg_thread(WMixThread_Param *wmtp)
                         msg.type>>8, 
                         msg.value, 
                         WMIX_MSG_BUFF_SIZE, 
-                        &wmix_load_wav_mp3_thread);
+                        &wmix_load_wav_mp3_thread2);
                     break;
                 //互斥播放音频
                 case 3:
@@ -1211,7 +1215,7 @@ void wmix_msg_thread(WMixThread_Param *wmtp)
                         msg.type>>8, 
                         msg.value, 
                         WMIX_MSG_BUFF_SIZE, 
-                        &wmix_load_wav_mp3_2_thread);
+                        &wmix_load_wav_mp3_thread2);
                     break;
                 //播放stream
                 case 4:
@@ -1248,7 +1252,8 @@ void wmix_msg_thread(WMixThread_Param *wmtp)
         else if(ret < 1 && errno != ENOMSG)
         {
             fprintf(stderr, "wmix_msg_thread: process exist\n");
-            exit(0);
+            err_exit = true;
+            break;
         }
         //
         usleep(10000);
@@ -1256,13 +1261,19 @@ void wmix_msg_thread(WMixThread_Param *wmtp)
     //删除队列
     msgctl(wmix->msg_fd, IPC_RMID, NULL);
     //
-    printf("wmix_msg_thread exit\n");
+    if(wmix->debug) printf("wmix_msg_thread exit\n");
     //线程计数
     wmix->thread_count -= 1;
     //
     if(wmtp->param)
         free(wmtp->param);
     free(wmtp);
+    //
+    if(err_exit)
+    {
+        signal_callback(SIGINT);
+        exit(0);
+    }
 }
 
 void wmix_play_thread(WMixThread_Param *wmtp)
@@ -1325,45 +1336,13 @@ void wmix_play_thread(WMixThread_Param *wmtp)
         usleep(1000);
     }
     //
-    printf("wmix_play_thread exit\n");
+    if(wmix->debug) printf("wmix_play_thread exit\n");
     //线程计数
     wmix->thread_count -= 1;
     //
     if(wmtp->param)
         free(wmtp->param);
     free(wmtp);
-}
-
-WMix_Struct *wmix_init(void)
-{
-    WMix_Struct *wmix = NULL;
-	SNDPCMContainer_t *playback = wmix_alsa_init(WMIX_CHANNELS, WMIX_SAMPLE, WMIX_FREQ, 'p');
-    //
-    if(!playback)
-        return NULL;
-    //
-	wmix = (WMix_Struct *)calloc(1, sizeof(WMix_Struct));
-    wmix->buff = (uint8_t *)calloc(WMIX_BUFF_SIZE+4, sizeof(uint8_t));
-    wmix->playback = playback;
-    wmix->head.U8 = wmix->tail.U8 = wmix->buff;
-    wmix->start.U8 = wmix->buff;
-    wmix->end.U8 = wmix->buff + WMIX_BUFF_SIZE;
-    //
-    // pthread_mutex_init(&wmix->lock, NULL);
-    wmix->run = 1;
-    wmix->reduceMode = 1;
-    wmix_throwOut_thread(wmix, 0, NULL, 0, &wmix_msg_thread);
-    wmix_throwOut_thread(wmix, 0, NULL, 0, &wmix_play_thread);
-    //
-    printf("\n---- WMix info -----\n   通道数: %d\n   采样率: %d Hz\n   采样位数: %d bit\n   总数据量: -- Bytes\n"
-        "   每次写入帧数: %ld\n   每帧字节数: %ld Bytes\n   每次读写字节数: %ld Bytes\n   缓冲区大小: %ld Bytes\n\n", 
-        WMIX_CHANNELS, WMIX_FREQ, WMIX_SAMPLE,
-        playback->chunk_size,
-        playback->bits_per_frame/8,
-        playback->chunk_bytes,
-        playback->buffer_size);
-    //
-	return wmix;
 }
 
 void wmix_exit(WMix_Struct *wmix)
@@ -1387,6 +1366,37 @@ void wmix_exit(WMix_Struct *wmix)
         // pthread_mutex_destroy(&wmix->lock);
         free(wmix);
     }
+}
+
+WMix_Struct *wmix_init(void)
+{
+    WMix_Struct *wmix = NULL;
+	SNDPCMContainer_t *playback = wmix_alsa_init(WMIX_CHANNELS, WMIX_SAMPLE, WMIX_FREQ, 'p');
+    //
+    if(!playback)
+        return NULL;
+    //
+	wmix = (WMix_Struct *)calloc(1, sizeof(WMix_Struct));
+    wmix->buff = (uint8_t *)calloc(WMIX_BUFF_SIZE+4, sizeof(uint8_t));
+    wmix->playback = playback;
+    wmix->head.U8 = wmix->tail.U8 = wmix->buff;
+    wmix->start.U8 = wmix->buff;
+    wmix->end.U8 = wmix->buff + WMIX_BUFF_SIZE;
+    //
+    // pthread_mutex_init(&wmix->lock, NULL);
+    wmix->run = 1;
+    wmix->reduceMode = 1;
+    wmix_throwOut_thread(wmix, 0, NULL, 0, &wmix_msg_thread);
+    wmix_throwOut_thread(wmix, 0, NULL, 0, &wmix_play_thread);
+    //
+    printf("\n---- WMix info -----\n   通道数: %d\n   采样率: %d Hz\n   采样位数: %d bit\n   总数据量: -- Bytes\n", 
+        WMIX_CHANNELS, WMIX_FREQ, WMIX_SAMPLE);
+    
+    signal(SIGINT, signal_callback);
+    signal(SIGTERM, signal_callback);
+
+    //
+	return wmix;
 }
 
 static int16_t volumeAdd(int16_t L1, int16_t L2)
@@ -1720,7 +1730,7 @@ void wmix_load_wav(
         return;
 	}
     //
-    printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   总数据量: %d Bytes\n   msgPath: %s\n", 
+    if(wmix->debug) printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   总数据量: %d Bytes\n   msgPath: %s\n", 
         wavPath,
         wav.format.channels,
         wav.format.sample_length,
@@ -1729,7 +1739,7 @@ void wmix_load_wav(
         wav.chunk.length,
         msgPath);
     //
-    if(msgPath)
+    if(msgPath && msgPath[0])
     {
         //创建消息挂靠路径
         if(access(msgPath, F_OK) != 0)
@@ -1744,6 +1754,8 @@ void wmix_load_wav(
             return;
         }
     }
+    else
+        msgPath = NULL;
     //独占 reduceMode
     if(reduce && wmix->reduceMode == 1)
     {
@@ -1833,7 +1845,7 @@ void wmix_load_wav(
             {
                 bpsCount -= wav.format.bytes_p_second;
                 second = total/wav.format.bytes_p_second;
-                printf("  %s %02d:%02d\n", wavPath, second/60, second%60);
+                if(wmix->debug) printf("  %s %02d:%02d\n", wavPath, second/60, second%60);
             }
             //
             if(head.U8 == 0)
@@ -1864,7 +1876,7 @@ void wmix_load_wav(
                 break;
             }
             //
-            printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   总数据量: %d Bytes\n   msgPath: %s\n", 
+            if(wmix->debug) printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   总数据量: %d Bytes\n   msgPath: %s\n", 
                 wavPath,
                 wav.format.channels,
                 wav.format.sample_length,
@@ -1890,7 +1902,7 @@ void wmix_load_wav(
     close(fd);
     free(buff);
     //
-    printf(">> %s end <<\n", wavPath);
+    if(wmix->debug) printf(">> %s end <<\n", wavPath);
     //关闭 reduceMode
     if(rdceIsMe)
         wmix->reduceMode = 1;
@@ -1946,7 +1958,7 @@ enum mad_flow mad_output(void *data, struct mad_header const *header, struct mad
         wmm->totalPow = (double)(WMIX_CHANNELS*WMIX_SAMPLE/8*WMIX_FREQ)/wmm->bps;
         wmm->totalWait = wmm->bps*wmm->totalPow/3;
         //
-        printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   总数据量: -- Bytes\n   msgPath: %s\n", 
+        if(wmm->wmix->debug) printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   总数据量: -- Bytes\n   msgPath: %s\n", 
             wmm->mp3Path,
             pcm->channels, 16,
             header->samplerate,
@@ -2014,7 +2026,7 @@ enum mad_flow mad_output(void *data, struct mad_header const *header, struct mad
     {
         wmm->bpsCount -= wmm->bps;
         second = wmm->total/wmm->bps;
-        printf("  %s %02d:%02d\n", wmm->mp3Path, second/60, second%60);
+        if(wmm->wmix->debug) printf("  %s %02d:%02d\n", wmm->mp3Path, second/60, second%60);
     }
     //
     if(wmm->head.U8 == 0)
@@ -2095,7 +2107,7 @@ void wmix_load_mp3(
     wmm.rdce = reduce+1;
     wmm.repeat = (uint16_t)repeatInterval*10;
     //
-    if(msgPath)
+    if(msgPath && msgPath[0])
     {
         //创建消息挂靠路径
         if(access(msgPath, F_OK) != 0)
@@ -2112,6 +2124,8 @@ void wmix_load_mp3(
         //
         wmm.msgPath = msgPath;
     }
+    else
+        msgPath = NULL;
 
     //
     if((fd = open(mp3Path, O_RDONLY)) <= 0){
@@ -2171,10 +2185,28 @@ void wmix_load_mp3(
     close(fd);
     munmap(wmm.fdm, sta.st_size);
     //
-    printf(">> %s end <<\n", mp3Path);
+    if(wmix->debug) printf(">> %s end <<\n", mp3Path);
 }
 
 //--------------- wmix main ---------------
+
+void help(char *argv0)
+{
+    printf(
+        "\n"
+        "Usage: %s [option]\n"
+        "\n"
+        "Opition:\n"
+        "  -d : 显示debug信息\n"
+        "  -v -? --help : 显示帮助\n"
+        "\n"
+        "软件版本: %s\n"
+        "\n"
+        "Example:\n"
+        "  %s &\n"
+        "\n"
+        ,argv0, WMIX_VERSION, argv0);
+}
 
 int main(int argc, char **argv)
 {
@@ -2184,19 +2216,40 @@ int main(int argc, char **argv)
     // printf("play_wav ...\n");
     // play_wav("./capture.wav");
     //
-    WMix_Struct *wmix = wmix_init();
-    if(wmix){
+
+    if(argc > 1 && 
+        (strstr(argv[1], "-v") || 
+        strstr(argv[1], "-?") ||
+        strstr(argv[1], "help")))
+    {
+        help(argv[0]);
+        return 0;
+    }
+
+    main_wmix = wmix_init();
+
+    if(main_wmix)
+    {
+        if(argc > 1)
+        {
+            if(strstr(argv[1], "-d"))
+                main_wmix->debug = true;
+            else
+                main_wmix->debug = false;
+        }
+
         sleep(1);
-        while(1){
+        while(1)
+        {
             //--- 重启 ---
-            if(wmix->run == 0 && wmix->thread_count == 0){
-                wmix->run = 1;
-                wmix_throwOut_thread(wmix, 0, NULL, 0, &wmix_msg_thread);
-                wmix_throwOut_thread(wmix, 0, NULL, 0, &wmix_play_thread);
+            if(main_wmix->run == 0 && main_wmix->thread_count == 0)
+            {
+                main_wmix->run = 1;
+                wmix_throwOut_thread(main_wmix, 0, NULL, 0, &wmix_msg_thread);
+                wmix_throwOut_thread(main_wmix, 0, NULL, 0, &wmix_play_thread);
             }
             usleep(100000);
         }
-        wmix_exit(wmix);
     }
     return 0;
 }
