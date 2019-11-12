@@ -1785,7 +1785,7 @@ void wmix_load_wav(
     else
         msgPath = NULL;
     //独占 reduceMode
-    if(reduce && wmix->reduceMode == 1)
+    if(rdce > 1 && wmix->reduceMode == 1)
     {
         wmix->reduceMode = rdce;
         rdceIsMe = 1;
@@ -1884,6 +1884,10 @@ void wmix_load_wav(
         }
         else if(repeat)
         {
+            //关闭 reduceMode
+            if(rdceIsMe && wmix->reduceMode == rdce)
+                wmix->reduceMode = 1;
+            //
             lseek(fd, 44, SEEK_SET);
             //
             for(ret = 0; ret < repeat; ret++)
@@ -1905,6 +1909,9 @@ void wmix_load_wav(
             if(ret != repeat){
                 ret = -1;
                 break;
+            //重启 reduceMode
+            if(rdceIsMe && wmix->reduceMode == 1)
+                wmix->reduceMode = rdce;
             }
             //
             if(wmix->debug) printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   总数据量: %d Bytes\n   msgPath: %s\n", 
@@ -1936,7 +1943,7 @@ void wmix_load_wav(
     //
     if(wmix->debug) printf(">> %s end <<\n", wavPath);
     //关闭 reduceMode
-    if(rdceIsMe)
+    if(rdceIsMe && wmix->reduceMode == rdce)
         wmix->reduceMode = 1;
 }
 
@@ -1964,6 +1971,7 @@ typedef struct{
     //
     uint8_t rdce;//reduce
     uint16_t repeat;//repeatInterval*10
+    uint8_t rdceIsMe;
 }WMix_Mp3;
 
 static int16_t mad_scale(mad_fixed_t sample)
@@ -2083,6 +2091,10 @@ enum mad_flow mad_input(void *data, struct mad_stream *stream)
         {
             if(wmm->head.U8)//已经播放完一遍了
             {
+                //关闭 reduceMode
+                if(wmm->rdceIsMe && wmm->wmix->reduceMode == wmm->rdce)
+                    wmm->wmix->reduceMode = 1;
+                //
                 for(count = 0; count < wmm->repeat; count++)
                 {
                     usleep(100000);
@@ -2099,6 +2111,9 @@ enum mad_flow mad_input(void *data, struct mad_stream *stream)
                             return MAD_FLOW_STOP;
                     }
                 }
+                //重启 reduceMode
+                if(wmm->rdceIsMe && wmm->wmix->reduceMode == 1)
+                    wmm->wmix->reduceMode = wmm->rdce;
             }
         }
         else
@@ -2128,7 +2143,6 @@ void wmix_load_mp3(
     // WMix_Msg msg;
     key_t msg_key;
     // int msg_fd;
-    uint8_t rdceIsMe = 0;
     //
     struct stat sta;
     int fd;
@@ -2140,9 +2154,10 @@ void wmix_load_mp3(
     memset(&wmm, 0, sizeof(WMix_Mp3));
     wmm.wmix = wmix;
     wmm.mp3Path = mp3Path;
-    wmm.rdce = reduce+1;
     wmm.repeat = (uint16_t)repeatInterval*10;
     wmm.loopWord = wmix->loopWord;
+    wmm.rdceIsMe = 0;
+    wmm.rdce = reduce+1;
     //
     if(msgPath && msgPath[0])
     {
@@ -2188,10 +2203,10 @@ void wmix_load_mp3(
     }
     
     //独占 reduceMode
-    if(reduce && wmix->reduceMode == 1)
+    if(wmm.rdce > 1 && wmix->reduceMode == 1)
     {
         wmix->reduceMode = wmm.rdce;
-        rdceIsMe = 1;
+        wmm.rdceIsMe = 1;
     }
     else
         wmm.rdce = 1;
@@ -2208,7 +2223,7 @@ void wmix_load_mp3(
     mad_decoder_finish(&decoder);
 
     //关闭 reduceMode
-    if(rdceIsMe)
+    if(wmm.rdceIsMe && wmix->reduceMode == wmm.rdce)
         wmix->reduceMode = 1;
 
     //等待播放完毕
