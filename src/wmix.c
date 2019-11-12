@@ -985,7 +985,7 @@ void wmix_record_stream_thread(WMixThread_Param *wmtp)
     divPow = (float)(WMIX_FREQ - freq)/freq;
     divCount = 0;
     //
-    printf("<< %s record >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   时间长度: -- sec\n\n", 
+    if(wmtp->wmix->debug) printf("<< %s record >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   时间长度: -- sec\n\n", 
         path, chn, sample, freq, bytes_p_second2);
     //线程计数
     wmtp->wmix->thread_count += 1;
@@ -1002,7 +1002,7 @@ void wmix_record_stream_thread(WMixThread_Param *wmtp)
             {
                 bpsCount -= bytes_p_second;
                 second = total/bytes_p_second;
-                printf("  %s %02d:%02d\n", path, second/60, second%60);
+                if(wmtp->wmix->debug) printf("  %s %02d:%02d\n", path, second/60, second%60);
             }
             //
             if(!wmtp->wmix->run)
@@ -1024,7 +1024,7 @@ void wmix_record_stream_thread(WMixThread_Param *wmtp)
     wmix_alsa_release(record);
     close(fd_write);
     //
-    printf(">> %s end <<\n", path);
+    if(wmtp->wmix->debug) printf(">> %s end <<\n", path);
     //删除文件
     remove(path);
     //线程计数
@@ -1096,7 +1096,7 @@ void wmix_record_thread(WMixThread_Param *wmtp)
     divPow = (float)(WMIX_FREQ - freq)/freq;
     divCount = 0;
     //
-    printf("<< %s record >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   时间长度: %d sec\n\n", 
+    if(wmtp->wmix->debug) printf("<< %s record >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   时间长度: %d sec\n\n", 
         path, chn, sample, freq, bytes_p_second2, duration_time);
     //线程计数
     wmtp->wmix->thread_count += 1;
@@ -1121,7 +1121,7 @@ void wmix_record_thread(WMixThread_Param *wmtp)
             {
                 bpsCount -= bytes_p_second;
                 second = total/bytes_p_second;
-                printf("  %s %02d:%02d\n", path, second/60, second%60);
+                if(wmtp->wmix->debug) printf("  %s %02d:%02d\n", path, second/60, second%60);
             }
             //
             if(!wmtp->wmix->run)
@@ -1149,7 +1149,7 @@ void wmix_record_thread(WMixThread_Param *wmtp)
     wmix_alsa_release(record);
     close(fd);
     //
-    printf(">> %s end <<\n", path);
+    if(wmtp->wmix->debug) printf(">> %s end <<\n", path);
     //线程计数
     wmtp->wmix->thread_count -= 1;
     //

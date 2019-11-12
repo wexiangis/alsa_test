@@ -22,10 +22,11 @@ void wmix_set_volume(uint8_t count, uint8_t div);
 //repeatInterval: 音频重复播放间隔,单位 sec
 //  0: 不启用
 //  >0: 播放结束后间隔 repeatInterval sec 后重播
+//breakall: 是否打断其它音频
 //返回: >0 正常返回特定id,可用于"wmix_play_kill(id)"
 int wmix_play(char *wavOrMp3, uint8_t backgroundReduce, uint8_t repeatInterval, bool breakall);
 
-//根据 wmix_play 返回的id关闭启动的音频,id=0时关闭所有
+//根据 wmix_play() 返回的id关闭启动的音频,id=0时关闭所有
 void wmix_play_kill(int id);
 
 //----- 播放音频流,用于播放录音 -----
