@@ -279,7 +279,11 @@ int SNDWAV_SetParams(SNDPCMContainer_t *sndpcm, WAVContainer_t *wav)
     //     sndpcm->buffer_size);
 
     /* Allocate audio data buffer */
+#if(WMIX_CHANNELS == 1)
+    sndpcm->data_buf = (uint8_t *)malloc(sndpcm->chunk_bytes*2+1);
+#else
     sndpcm->data_buf = (uint8_t *)malloc(sndpcm->chunk_bytes+1);
+#endif
     if (!sndpcm->data_buf) {
         fprintf(stderr, "Error malloc: [data_buf]\n");
         return -1;
@@ -653,7 +657,11 @@ int SNDWAV_SetParams2(SNDPCMContainer_t *sndpcm, uint16_t freq, uint8_t channels
     sndpcm->chunk_bytes = sndpcm->chunk_size * sndpcm->bits_per_frame / 8;
 
     /* Allocate audio data buffer */
+#if(WMIX_CHANNELS == 1)
+    sndpcm->data_buf = (uint8_t *)malloc(sndpcm->chunk_bytes*2+1);
+#else
     sndpcm->data_buf = (uint8_t *)malloc(sndpcm->chunk_bytes+1);
+#endif
     if (!sndpcm->data_buf){
         fprintf(stderr, "Error malloc: [data_buf]\n");
         return -1;
@@ -875,6 +883,30 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
     free(wmtp);
 }
 
+#if(WMIX_CHANNELS == 1)
+#define RECORD_DATA_TRANSFER()  \
+if(chn == 1)\
+{\
+    for(count = 0, src.U8 = dist.U8 = record->data_buf; count < frame_size; count++)\
+    {\
+        if(divCount >= 1.0){src.U16++;divCount -= 1.0;}\
+        else{*dist.U16++ = *src.U16++;divCount += divPow;}\
+    }\
+    src.U8 = record->data_buf;\
+    buffSize2 = (size_t)(dist.U16 - src.U16)*2;\
+}\
+else\
+{\
+    memcpy(&record->data_buf[frame_size], record->data_buf, frame_size);\
+    for(count = 0, src.U8 = &record->data_buf[frame_size], dist.U8 = record->data_buf; count < frame_size; count++)\
+    {\
+        if(divCount >= 1.0){src.U16++;divCount -= 1.0;}\
+        else{*dist.U16++ = *src.U16;*dist.U16++ = *src.U16++;divCount += divPow;}\
+    }\
+    src.U8 = record->data_buf;\
+    buffSize2 = (size_t)(dist.U16 - src.U16)*2;\
+}
+#else
 #define RECORD_DATA_TRANSFER()  \
 if(chn == 1)\
 {\
@@ -896,6 +928,7 @@ else\
     src.U8 = record->data_buf;\
     buffSize2 = (size_t)(dist.U32 - src.U32)*4;\
 }
+#endif
 
 void signal_get_SIGPIPE(int id){}
 
