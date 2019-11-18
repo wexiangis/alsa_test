@@ -38,7 +38,7 @@ typedef struct SNDPCMContainer {
 #define WMIX_FREQ       44100
 
 typedef struct{
-    //type[0,7]: 1/设置音量 2/互斥播放文件 3/混音播放文件 4/fifo播放wav流 5/复位 6/录音 7/录音至文件 8/清空播放列表
+    //type[0,7]: 1/设置音量 2/互斥播放文件 3/混音播放文件 4/fifo播放wav流 5/复位 6/录音 7/录音至文件 8/清空播放列表 9/排头 10/排尾
     //type[8,15]: reduce
     //type[16,23]: repeatInterval
     long type;
@@ -47,7 +47,7 @@ typedef struct{
 }WMix_Msg;
 
 //循环缓冲区大小
-#define WMIX_BUFF_SIZE 524288//512K //1048576//1M
+#define WMIX_BUFF_SIZE 262144//256K 524288//512K //1048576//1M
 
 //多功能指针
 typedef union
@@ -59,6 +59,10 @@ typedef union
     int32_t *S32;
     uint32_t *U32;
 }WMix_Point;
+
+typedef struct{
+    uint16_t head, tail;
+}WMix_Queue;
 
 typedef struct{
     SNDPCMContainer_t *playback;
@@ -79,6 +83,8 @@ typedef struct{
     uint8_t reduceMode;
     //
     bool debug;
+    //
+    WMix_Queue queue;
 }WMix_Struct;
 
 //设置音量
@@ -116,7 +122,7 @@ WMix_Point wmix_load_wavStream(
 void wmix_load_wav(
     WMix_Struct *wmix,
     char *wavPath,
-    char *msgPath,
+    int msg_fd,
     uint8_t reduce,
     uint8_t repeatInterval);
 
@@ -124,7 +130,7 @@ void wmix_load_wav(
 void wmix_load_mp3(
     WMix_Struct *wmix,
     char *mp3Path,
-    char *msgPath,
+    int msg_fd,
     uint8_t reduce,
     uint8_t repeatInterval);
 

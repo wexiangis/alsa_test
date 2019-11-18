@@ -18,7 +18,7 @@
 #define WMIX_MSG_BUFF_SIZE 128
 
 typedef struct{
-    //type[0,7]: 1/设置音量 2/互斥播放文件 3/混音播放文件 4/fifo播放wav流 5/复位 6/录音 7/录音至文件 8/清空播放列表
+    //type[0,7]: 1/设置音量 2/互斥播放文件 3/混音播放文件 4/fifo播放wav流 5/复位 6/录音 7/录音至文件 8/清空播放列表 9/排头 10/排尾
     //type[8,15]: reduce
     //type[16,23]: repeatInterval
     long type;
@@ -75,7 +75,7 @@ char *wmix_auto_path3(char *buff, int id)
     return buff;
 }
 
-int wmix_play(char *wavOrMp3, uint8_t backgroundReduce, uint8_t repeatInterval, bool breakall)
+int wmix_play(char *wavOrMp3, uint8_t backgroundReduce, uint8_t repeatInterval, int order)
 {
     static uint8_t id_w = 0;//id 范围[0~255]
     WMix_Msg msg;
@@ -84,7 +84,7 @@ int wmix_play(char *wavOrMp3, uint8_t backgroundReduce, uint8_t repeatInterval, 
     //
     if(!wavOrMp3)
     {
-        if(breakall)
+        if(order < 0)
             wmix_play_kill(0);
         return 0;
     }
@@ -109,7 +109,15 @@ int wmix_play(char *wavOrMp3, uint8_t backgroundReduce, uint8_t repeatInterval, 
     }
     //装填 message
     memset(&msg, 0, sizeof(WMix_Msg));
-    msg.type = (breakall?2:3) + backgroundReduce*0x100 + repeatInterval*0x10000;
+    msg.type = backgroundReduce*0x100 + repeatInterval*0x10000;
+    if(order < 0)
+        msg.type += 2;
+    else if(order == 0)
+        msg.type += 3;
+    else if(order == 1)
+        msg.type += 9;
+    else
+        msg.type += 10;
     if(strlen(wavOrMp3) > WMIX_MSG_BUFF_SIZE){
         fprintf(stderr, "wmix_play_wav: %s > max len (%d)\n", wavOrMp3, WMIX_MSG_BUFF_SIZE);
         return 0;

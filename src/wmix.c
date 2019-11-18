@@ -781,7 +781,7 @@ void wmix_load_stream_thread(WMixThread_Param *wmtp)
     ssize_t ret, total = 0, total2 = 0, totalWait;
     double buffSizePow;
     uint32_t tick, second = 0, bytes_p_second, bytes_p_second2, bpsCount = 0;
-    uint8_t rdce = (wmtp->flag&0xFF)+1, rdceIsMe = 0;
+    uint8_t rdce = ((wmtp->flag>>8)&0xFF)+1, rdceIsMe = 0;
     //
     uint8_t loopWord;
     loopWord = wmtp->wmix->loopWord;
@@ -1162,15 +1162,72 @@ void wmix_load_wav_mp3_thread(WMixThread_Param *wmtp)
 {
     char *name = (char*)wmtp->param;
     uint16_t len = strlen((char*)wmtp->param);
+    //
+    char *msgPath;
+    WMix_Msg msg;
+    key_t msg_key;
+    int msg_fd = 0;
+    //
+    bool run = true;
+    //
+    int queue = -1;
+    //
+    uint8_t loopWord;
+    loopWord = wmtp->wmix->loopWord;
     //线程计数
     wmtp->wmix->thread_count += 1;
-    if(len > 3 &&
-        (name[len-3] == 'm' || name[len-3] == 'M') &&
-        (name[len-2] == 'p' || name[len-2] == 'P') &&
-        name[len-1] == '3')
-        wmix_load_mp3(wmtp->wmix, name, (char*)&wmtp->param[len+1], wmtp->flag&0xFF, (wmtp->flag>>8)&0xFF);
+    //
+    msgPath = (char*)&wmtp->param[len+1];
+    if(msgPath && msgPath[0])
+    {
+        //创建消息挂靠路径
+        if(access(msgPath, F_OK) != 0)
+            creat(msgPath, 0777);
+        //创建消息
+        if((msg_key = ftok(msgPath, WMIX_MSG_ID)) > 0)
+            msg_fd = msgget(msg_key, IPC_CREAT|0666);
+    }
     else
-        wmix_load_wav(wmtp->wmix, name, (char*)&wmtp->param[len+1], wmtp->flag&0xFF, (wmtp->flag>>8)&0xFF);
+        msgPath = NULL;
+    //排队(不支持循环播放)
+    if(((wmtp->flag&0xFF) == 9 || (wmtp->flag&0xFF) == 10) 
+        && ((wmtp->flag>>16)&0xFF) == 0)
+    {
+        run = false;
+
+        if((wmtp->flag&0xFF) == 9)//排头
+            queue = wmtp->wmix->queue.head--;
+        else
+            queue = wmtp->wmix->queue.tail++;
+        
+        while(wmtp->wmix->run && loopWord == wmtp->wmix->loopWord)
+        {
+            if(wmtp->wmix->head.U8 == wmtp->wmix->tail.U8 && 
+                queue == wmtp->wmix->queue.head)
+            {
+                run = true;
+                break;
+            }
+            usleep(100000);
+        }
+    }
+    //
+    if(run)
+    {
+        if(len > 3 &&
+            (name[len-3] == 'm' || name[len-3] == 'M') &&
+            (name[len-2] == 'p' || name[len-2] == 'P') &&
+            name[len-1] == '3')
+            wmix_load_mp3(wmtp->wmix, name, msg_fd, (wmtp->flag>>8)&0xFF, (wmtp->flag>>16)&0xFF);
+        else
+            wmix_load_wav(wmtp->wmix, name, msg_fd, (wmtp->flag>>8)&0xFF, (wmtp->flag>>16)&0xFF);
+    }
+    //
+    if(queue >= 0)
+        wmtp->wmix->queue.head += 1;
+    //
+    if(msgPath)
+        remove(msgPath);
     //线程计数
     wmtp->wmix->thread_count -= 1;
     //
@@ -1231,8 +1288,12 @@ void wmix_msg_thread(WMixThread_Param *wmtp)
                     wmix->loopWord += 1;
                 //混音播放音频
                 case 3:
+                //排头
+                case 9:
+                //排尾
+                case 10:
                     wmix_throwOut_thread(wmix, 
-                        msg.type>>8, 
+                        msg.type, 
                         msg.value, 
                         WMIX_MSG_BUFF_SIZE, 
                         &wmix_load_wav_mp3_thread);
@@ -1240,7 +1301,7 @@ void wmix_msg_thread(WMixThread_Param *wmtp)
                 //播放stream
                 case 4:
                     wmix_throwOut_thread(wmix, 
-                        msg.type>>8, 
+                        msg.type, 
                         msg.value, 
                         WMIX_MSG_BUFF_SIZE, 
                         &wmix_load_stream_thread);
@@ -1253,7 +1314,7 @@ void wmix_msg_thread(WMixThread_Param *wmtp)
                 //录音stream
                 case 6:
                     wmix_throwOut_thread(wmix, 
-                        msg.type>>8, 
+                        msg.type, 
                         msg.value, 
                         WMIX_MSG_BUFF_SIZE, 
                         &wmix_record_stream_thread);
@@ -1261,7 +1322,7 @@ void wmix_msg_thread(WMixThread_Param *wmtp)
                 //录音至文件
                 case 7:
                     wmix_throwOut_thread(wmix, 
-                        msg.type>>8, 
+                        msg.type, 
                         msg.value, 
                         WMIX_MSG_BUFF_SIZE, 
                         &wmix_record_thread);
@@ -1720,7 +1781,7 @@ WMix_Point wmix_load_wavStream(
 void wmix_load_wav(
     WMix_Struct *wmix,
     char *wavPath,
-    char *msgPath,
+    int msg_fd,
     uint8_t reduce,
     uint8_t repeatInterval)
 {
@@ -1737,8 +1798,6 @@ void wmix_load_wav(
     uint16_t repeat = (uint16_t)repeatInterval*10;
     //
     WMix_Msg msg;
-    key_t msg_key;
-    int msg_fd = 0;
     //
     uint8_t loopWord;
     loopWord = wmix->loopWord;
@@ -1758,32 +1817,13 @@ void wmix_load_wav(
         return;
 	}
     //
-    if(wmix->debug) printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   总数据量: %d Bytes\n   msgPath: %s\n", 
+    if(wmix->debug) printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   总数据量: %d Bytes\n", 
         wavPath,
         wav.format.channels,
         wav.format.sample_length,
         wav.format.sample_rate,
         wav.format.bytes_p_second,
-        wav.chunk.length,
-        msgPath);
-    //
-    if(msgPath && msgPath[0])
-    {
-        //创建消息挂靠路径
-        if(access(msgPath, F_OK) != 0)
-            creat(msgPath, 0777);
-        //创建消息
-        if((msg_key = ftok(msgPath, WMIX_MSG_ID)) == -1){
-            fprintf(stderr, "wmix_load_wav2: ftok err\n");
-            return;
-        }
-        if((msg_fd = msgget(msg_key, IPC_CREAT|0666)) == -1){
-            fprintf(stderr, "wmix_load_wav2: msgget err\n");
-            return;
-        }
-    }
-    else
-        msgPath = NULL;
+        wav.chunk.length);
     //独占 reduceMode
     if(rdce > 1 && wmix->reduceMode == 1)
     {
@@ -1799,7 +1839,7 @@ void wmix_load_wav(
     totalWait = buffSize2/2;
     //把每秒数据包拆得越细, 打断速度越快
     //以下拆包的倍数必须能同时被 wav.format.sample_rate 和 WMIX_FREQ 整除 !!
-    if(msgPath)//在互斥播放模式时才使用
+    if(msg_fd)//在互斥播放模式时才使用
     {
         if(wav.format.sample_rate%4 == 0)
         {
@@ -1838,7 +1878,7 @@ void wmix_load_wav(
     do
     {
         //msg 检查
-        if(msgPath){
+        if(msg_fd){
             if(msgrcv(msg_fd, &msg, 
                 WMIX_MSG_BUFF_SIZE, 
                 0, IPC_NOWAIT) < 1 && 
@@ -1897,7 +1937,7 @@ void wmix_load_wav(
                 if(!wmix->run || loopWord != wmix->loopWord)
                     break;
                 //
-                if(msgPath){
+                if(msg_fd){
                     if(msgrcv(msg_fd, &msg, 
                         WMIX_MSG_BUFF_SIZE, 
                         0, IPC_NOWAIT) < 1 && 
@@ -1914,14 +1954,13 @@ void wmix_load_wav(
                 wmix->reduceMode = rdce;
             }
             //
-            if(wmix->debug) printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   总数据量: %d Bytes\n   msgPath: %s\n", 
+            if(wmix->debug) printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   总数据量: %d Bytes\n", 
                 wavPath,
                 wav.format.channels,
                 wav.format.sample_length,
                 wav.format.sample_rate,
                 wav.format.bytes_p_second,
-                wav.chunk.length,
-                msgPath);
+                wav.chunk.length);
             //
             total = total2 = bpsCount = 0;
             src.U8 = buff;
@@ -1936,8 +1975,6 @@ void wmix_load_wav(
     //     get_tick_err(wmix->tick, tick) < total2)
     //     usleep(1000);
     //
-    if(msgPath)
-        remove(msgPath);
     close(fd);
     free(buff);
     //
@@ -1948,7 +1985,7 @@ void wmix_load_wav(
 }
 
 typedef struct{
-    char *msgPath;//消息队列挂靠路径
+    // char *msgPath;//消息队列挂靠路径
     char *mp3Path;
     //
     WMix_Msg msg;
@@ -1999,19 +2036,18 @@ enum mad_flow mad_output(void *data, struct mad_header const *header, struct mad
         wmm->totalPow = (double)(WMIX_CHANNELS*WMIX_SAMPLE/8*WMIX_FREQ)/wmm->bps;
         wmm->totalWait = wmm->bps*wmm->totalPow/3;
         //
-        if(wmm->wmix->debug) printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   总数据量: -- Bytes\n   msgPath: %s\n", 
+        if(wmm->wmix->debug) printf("<< %s start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n   每秒字节: %d Bytes\n   总数据量: -- Bytes\n", 
             wmm->mp3Path,
             pcm->channels, 16,
             header->samplerate,
-            wmm->bps,
-            wmm->msgPath);
+            wmm->bps);
         //
         wmm->total = wmm->total2 = wmm->bpsCount = 0;
         wmm->head.U8 = wmm->wmix->head.U8;
         wmm->tick = wmm->wmix->tick;
     }
     //msg 检查
-    if(wmm->msgPath){
+    if(wmm->msg_fd){
         if(msgrcv(wmm->msg_fd, 
             &wmm->msg, 
             WMIX_MSG_BUFF_SIZE, 
@@ -2102,7 +2138,7 @@ enum mad_flow mad_input(void *data, struct mad_stream *stream)
                     if(!wmm->wmix->run || wmm->loopWord != wmm->wmix->loopWord)
                         return MAD_FLOW_STOP;
                     //msg 检查
-                    if(wmm->msgPath){
+                    if(wmm->msg_fd){
                         if(msgrcv(wmm->msg_fd, 
                             &wmm->msg, 
                             WMIX_MSG_BUFF_SIZE, 
@@ -2136,14 +2172,10 @@ enum mad_flow mad_error(void *data, struct mad_stream *stream, struct mad_frame 
 void wmix_load_mp3(
     WMix_Struct *wmix,
     char *mp3Path,
-    char *msgPath,
+    int msg_fd,
     uint8_t reduce,
     uint8_t repeatInterval)
 {
-    // WMix_Msg msg;
-    key_t msg_key;
-    // int msg_fd;
-    //
     struct stat sta;
     int fd;
     //
@@ -2158,27 +2190,7 @@ void wmix_load_mp3(
     wmm.loopWord = wmix->loopWord;
     wmm.rdceIsMe = 0;
     wmm.rdce = reduce+1;
-    //
-    if(msgPath && msgPath[0])
-    {
-        //创建消息挂靠路径
-        if(access(msgPath, F_OK) != 0)
-            creat(msgPath, 0777);
-        //创建消息
-        if((msg_key = ftok(msgPath, WMIX_MSG_ID)) == -1){
-            fprintf(stderr, "wmix_load_mp3: ftok err\n");
-            return;
-        }
-        if((wmm.msg_fd = msgget(msg_key, IPC_CREAT|0666)) == -1){
-            fprintf(stderr, "wmix_load_mp3: msgget err\n");
-            return;
-        }
-        //
-        wmm.msgPath = msgPath;
-    }
-    else
-        msgPath = NULL;
-
+    wmm.msg_fd = msg_fd;
     //
     if((fd = open(mp3Path, O_RDONLY)) <= 0){
         fprintf(stderr, "wmix_load_mp3: open %s err\n", mp3Path);
@@ -2233,8 +2245,6 @@ void wmix_load_mp3(
     //     get_tick_err(wmm.wmix->tick, wmm.tick) < wmm.total2)
     //     usleep(1000);
     //
-    if(msgPath)
-        remove(msgPath);
     close(fd);
     munmap(wmm.fdm, sta.st_size);
     //

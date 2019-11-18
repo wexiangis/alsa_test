@@ -11,7 +11,10 @@ void help(char *argv0)
         "Usage: %s [option] WavOrMp3File\n"
         "\n"
         "Opition:\n"
-        "  -b : 打断模式(不设置时为混音模式)\n"
+        "  -l : 排队模式,排到最后一位(默认模式)\n"
+        "  -i : 排队模式,排到第一位\n"
+        "  -m : 混音模式(不设置时为排队模式)\n"
+        "  -b : 打断模式(不设置时为排队模式)\n"
         "  -t interval : 循环播放模式,间隔秒,取值[1~255]\n"
         "  -d reduce : 背景音削减倍数,取值[1~255]\n"
         "  -v volume : 音量设置0~10\n"
@@ -45,7 +48,7 @@ int main(int argc, char **argv)
     int reduce = 0;
     int volume = -1;
     int id = -1;
-    bool breakall = false;
+    int order = 2;
     int rt = 5, rc = 1, rr = 44100;
 
     char *filePath = NULL;
@@ -62,7 +65,7 @@ int main(int argc, char **argv)
     {
         if(strlen(argv[i]) == 2 && strstr(argv[i], "-r"))
         {
-            record = true; 
+            record = true;
         }
         else if(strlen(argv[i]) == 3 && strstr(argv[i], "-rt") && i+1 < argc)
         {
@@ -81,7 +84,19 @@ int main(int argc, char **argv)
         }
         else if(strlen(argv[i]) == 2 && strstr(argv[i], "-b"))
         {
-            breakall = true; 
+            order = -1;
+        }
+        else if(strlen(argv[i]) == 2 && strstr(argv[i], "-m"))
+        {
+            order = 0;
+        }
+        else if(strlen(argv[i]) == 2 && strstr(argv[i], "-i"))
+        {
+            order = 1;
+        }
+        else if(strlen(argv[i]) == 2 && strstr(argv[i], "-l"))
+        {
+            order = 2;
         }
         else if(strlen(argv[i]) == 2 && strstr(argv[i], "-t") && i+1 < argc)
         {
@@ -150,7 +165,7 @@ int main(int argc, char **argv)
         wmix_record(filePath, rc, 16, rr, rt);
     else
     {
-        id = wmix_play(filePath, reduce, interval, breakall);
+        id = wmix_play(filePath, reduce, interval, order);
         if(id > 0)
             printf("id: %d\n", id);
     }
