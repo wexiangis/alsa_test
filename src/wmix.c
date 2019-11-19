@@ -1189,13 +1189,15 @@ void wmix_load_wav_mp3_thread(WMixThread_Param *wmtp)
     }
     else
         msgPath = NULL;
-    //排队(不支持循环播放)
+    //排队(循环播放和背景消减除时除外)
     if(((wmtp->flag&0xFF) == 9 || (wmtp->flag&0xFF) == 10) 
+        && ((wmtp->flag>>8)&0xFF) == 0
         && ((wmtp->flag>>16)&0xFF) == 0)
     {
         run = false;
 
-        if((wmtp->flag&0xFF) == 9)//排头
+        if((wmtp->flag&0xFF) == 9 && 
+            wmtp->wmix->queue.head != wmtp->wmix->queue.tail)//排头
             queue = wmtp->wmix->queue.head--;
         else
             queue = wmtp->wmix->queue.tail++;

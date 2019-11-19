@@ -22,7 +22,7 @@ void wmix_set_volume(uint8_t count, uint8_t div);
 //repeatInterval: 音频重复播放间隔,单位 sec
 //  0: 不启用
 //  >0: 播放结束后间隔 repeatInterval sec 后重播
-//order: 播放顺序
+//order: 播放顺序(backgroundReduce>0或repeatInterval>0时不参与排队)
 //  -1: 打断所有
 //  0:混音
 //  1:排头
