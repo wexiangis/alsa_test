@@ -1,11 +1,16 @@
 #ifndef _WMIX_H_
 #define _WMIX_H_
 
+//0/alsa 1/hi3516
+#define WMIX_MODE 0
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
+#if(WMIX_MODE==1)
+#include "hiaudio.h"
+#else
 #include <alsa/asoundlib.h>
-
 typedef struct SNDPCMContainer {
     snd_pcm_t *handle;
     snd_output_t *log;
@@ -19,6 +24,7 @@ typedef struct SNDPCMContainer {
 
     uint8_t *data_buf;
 } SNDPCMContainer_t;
+#endif
 
 //-------------------- Wav Mix --------------------------
 
@@ -87,8 +93,9 @@ typedef struct{
 }WMix_Queue;
 
 typedef struct{
+#if(WMIX_MODE!=1)
     SNDPCMContainer_t *playback;
-    //
+#endif
     uint8_t *buff;//缓冲区
     WMix_Point start, end;//缓冲区头尾指针
     WMix_Point head, tail, vipWrite;//当前缓冲区读写指针
@@ -112,14 +119,14 @@ typedef struct{
 }WMix_Struct;
 
 //设置音量
-long sys_volume_set(uint8_t count, uint8_t div);
-
-//-------------------- 独占方式播放 --------------------
+int sys_volume_set(uint8_t count, uint8_t div);
 
 //播放
-int play_wav(char *filename);
-//录音
+#if(WMIX_MODE==1)
+#define play_wav hiaudio_play_wav
+#else
 int record_wav(char *filename,uint32_t duration_time, uint8_t chn, uint8_t sample, uint16_t freq);
+#endif
 
 //-------------------- 混音方式播放 --------------------
 
@@ -149,6 +156,16 @@ void wmix_load_wav(
     int msg_fd,
     uint8_t reduce,
     uint8_t repeatInterval);
+
+#if(WMIX_MODE==1)
+//指定aac文件 的方式播放
+void wmix_load_aac(
+    WMix_Struct *wmix,
+    char *aacPath,
+    int msg_fd,
+    uint8_t reduce,
+    uint8_t repeatInterval);
+#endif
 
 //指定mp3文件 的方式播放
 void wmix_load_mp3(
