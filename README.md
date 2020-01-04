@@ -3,7 +3,7 @@
 
 
 #编译依赖库(交叉编译自行启用Makefile内的cross)
-make all
+make libs
 
 #生成目标文件 wmix 和 test
 make

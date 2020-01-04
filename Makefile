@@ -19,17 +19,24 @@ obj-wmixmsg+= ./src/wmix_user.c \
 		./src/wmix_user.h \
 		./src/wmixMsg.c
 
-obj-user+= ./src/wmix_user.c \
+obj-test+= ./src/wmix_user.c \
 		./src/wmix_user.h \
 		./src/wav.c ./src/wav.h \
-		./src/main.c
+		./src/test.c
 
-target:
+target:wmix wmixmsg test
+	@echo "---------- all complete !! ----------"
+
+wmix:
 	@$(cc) -Wall -o wmix $(obj-wmix) -L./libs/lib -I./libs/include -lpthread -lasound -lm -ldl -lmad
-	@$(cc) -Wall -o wmixMsg $(obj-wmixmsg) -lpthread
-	@$(cc) -Wall -o test $(obj-user) -lpthread
 
-all: dpkg-alsa alsa dpkg-mad mad
+wmixmsg:
+	@$(cc) -Wall -o wmixMsg $(obj-wmixmsg) -lpthread
+
+test:
+	@$(cc) -Wall -o test $(obj-test) -lpthread
+
+libs: dpkg-alsa alsa dpkg-mad mad
 	@echo "---------- all complete !! ----------"
 
 dpkg-mad:
