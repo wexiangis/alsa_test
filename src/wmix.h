@@ -25,7 +25,13 @@ typedef struct SNDPCMContainer {
 #include <pthread.h>
 #include <sys/ipc.h>
 
-#define WMIX_VERSION "V2.0 - 20191110"
+#if(WMIX_MERGE_MODE == 2)
+#define WMIX_MP3 0
+#else
+#define WMIX_MP3 1
+#endif
+
+#define WMIX_VERSION "V3.2 - 20200103"
 
 #define WMIX_MSG_PATH "/tmp/wmix"
 #define WMIX_MSG_PATH_CLEAR "rm -rf /tmp/wmix/*"
@@ -33,21 +39,37 @@ typedef struct SNDPCMContainer {
 #define WMIX_MSG_ID   'w'
 #define WMIX_MSG_BUFF_SIZE 128
 
-#define WMIX_CHANNELS   2
-#define WMIX_SAMPLE     16
-#define WMIX_FREQ       44100
+#define WMIX_CHANNELS    1
+#define WMIX_SAMPLE      16
+#define WMIX_FREQ        16000
 
 typedef struct{
-    //type[0,7]: 1/设置音量 2/互斥播放文件 3/混音播放文件 4/fifo播放wav流 5/复位 6/录音 7/录音至文件 8/清空播放列表 9/排头 10/排尾
+    //type[0,7]:
+    //      1/设置音量
+    //      2/互斥播放文件
+    //      3/混音播放文件
+    //      4/fifo播放wav流
+    //      5/复位
+    //      6/fifo录音wav流
+    //      7/录音wav文件
+    //      8/清空播放列表
+    //      9/排头播放
+    //      10/排尾播放
+    //      11/rtp send
+    //      12/rtp recv
+    //      13/录音aac文件
+    //      14/fifo录音aac流
+    //      15/fifo播放aac流
     //type[8,15]: reduce
     //type[16,23]: repeatInterval
     long type;
     //value: filePath + '\0' + msgPath
+    //value(rtp): chn(1) + bitWidth(1) + freq(2) + port(2) + ip + '\0' + msgPath
     uint8_t value[WMIX_MSG_BUFF_SIZE];
 }WMix_Msg;
 
 //循环缓冲区大小
-#define WMIX_BUFF_SIZE 262144//256K 524288//512K //1048576//1M
+#define WMIX_BUFF_SIZE 131072//128K //262144//256K 524288//512K //1048576//1M
 
 //多功能指针
 typedef union
@@ -69,22 +91,24 @@ typedef struct{
     //
     uint8_t *buff;//缓冲区
     WMix_Point start, end;//缓冲区头尾指针
-    WMix_Point head, tail;//当前缓冲区读写指针
+    WMix_Point head, tail, vipWrite;//当前缓冲区读写指针
     // pthread_mutex_t lock;//互斥锁
     //
-    uint8_t run;//全局正常运行标志,用于复位全局
+    uint8_t run;//全局正常运行标志
     uint8_t loopWord;//每个播放线程的循环标志都要与该值一致,否则循环结束,用于打断全局播放
     uint32_t tick;//播放指针启动至今走过的字节数
-    uint32_t thread_count;//线程计数 增加线程时+1 减少时-1 等于0时全部退出
+    //
+    uint32_t thread_sys;//线程计数 增加线程时+1 减少时-1 等于0时全部退出
+    uint32_t thread_record;//线程计数 增加线程时+1 减少时-1 等于0时全部退出
+    uint32_t thread_play;//线程计数 增加线程时+1 减少时-1 等于0时全部退出
     //
     key_t msg_key;
     int msg_fd;
     //
-    uint8_t reduceMode;
-    //
-    bool debug;
-    //
-    WMix_Queue queue;
+    uint8_t reduceMode;//背景消减模式
+    bool debug;//打印log?
+    WMix_Queue queue;//排队头尾标记
+    uint32_t onPlayCount;//当前排队总数
 }WMix_Struct;
 
 //设置音量

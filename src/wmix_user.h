@@ -8,11 +8,12 @@
 extern "C" {
 #endif
 
-#define WMIX_VERSION "V2.0 - 20191110"
+#define WMIX_VERSION "V3.2 - 20200103"
 
 //----- 设置音量 count/div 例如: 30% -> 30/100 -----
 //count: 音量  div: 分度
-void wmix_set_volume(uint8_t count, uint8_t div);
+//正常返回0
+int wmix_set_volume(uint8_t count, uint8_t div);
 
 //----- 播放 wav 和 mp3 文件 (互斥播放, wavOrMp3=NULL 时强制关闭播放) -----
 //backgroundReduce: 播放当前音频时,降低背景音量
@@ -27,11 +28,12 @@ void wmix_set_volume(uint8_t count, uint8_t div);
 //  0:混音
 //  1:排头
 //  2:排尾
-//返回: >0 正常返回特定id,可用于"wmix_play_kill(id)"
+//返回: <=0错误, >0 正常返回特定id,可用于"wmix_play_kill(id)"
 int wmix_play(char *wavOrMp3, uint8_t backgroundReduce, uint8_t repeatInterval, int order);
 
 //根据 wmix_play() 返回的id关闭启动的音频,id=0时关闭所有
-void wmix_play_kill(int id);
+//正常返回0
+int wmix_play_kill(int id);
 
 //----- 播放音频流,用于播放录音 -----
 //成功返回fd(fifo的写入端)  失败返回0
@@ -39,6 +41,10 @@ void wmix_play_kill(int id);
 //  0: 不启用
 //  >0: 背景音量降低倍数 backgroundVolume/(backgroundReduce+1)
 //  (注意: 当有进程正在使用backgroundReduce功能时,当前启用无效(先占先得))
+//channels: 声道数(取值1,2)
+//sample: 采样位数bit(取值16)
+//freq: 频率(取值44100,32000,22050,16000,11025,8000)
+//正常返回>0的fd
 int wmix_stream_open(
     uint8_t channels,
     uint8_t sample,
@@ -51,21 +57,46 @@ int wmix_stream_open(
 //  0: 不启用
 //  >0: 背景音量降低倍数 backgroundVolume/(backgroundReduce+1)
 //注意: 当有进程正在使用backgroundReduce功能时,当前启用无效(先占先得)
+//channels: 声道数(取值1,2)
+//sample: 采样位数bit(取值16)
+//freq: 频率(取值44100,32000,22050,16000,11025,8000)
+//正常返回>0的fd
 int wmix_record_stream_open(
     uint8_t channels,
     uint8_t sample,
     uint16_t freq);
 
 //----- 录音到文件 -----
-void wmix_record(
+//channels: 声道数(取值1,2)
+//sample: 采样位数bit(取值16)
+//freq: 频率(取值44100,32000,22050,16000,11025,8000)
+//正常返回0
+int wmix_record(
     char *wavPath,
     uint8_t channels,
     uint8_t sample,
     uint16_t freq,
-    uint16_t second);
+    uint16_t second,
+    bool useAAC);
 
-//复位
-void wmix_reset(void);
+//----- rtp -----
+//chn: 声道数(取值1,2)
+//bitWidth: 采样位数bit(取值16)
+//freq: 频率(取值44100,32000,22050,16000,11025,8000)
+//返回: >0 正常返回特定id,可用于"wmix_play_kill(id)"
+int wmix_rtp_recv(char *ip, int port, int chn, int bitWidth, int freq);
+
+//返回: >0 正常返回特定id,可用于"wmix_play_kill(id)"
+//chn: 声道数(取值1,2)
+//bitWidth: 采样位数bit(取值16)
+//freq: 频率(取值44100,32000,22050,16000,11025,8000)
+int wmix_rtp_send(char *ip, int port, int chn, int bitWidth, int freq);
+
+//----- 其它 -----
+//正常返回0
+int wmix_reset(void);
+//检查指定id的音频是否存在
+bool wmix_check_id(int id);
 
 #ifdef __cplusplus
 };
