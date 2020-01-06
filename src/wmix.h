@@ -37,7 +37,7 @@ typedef struct SNDPCMContainer {
 #define WMIX_MP3 1
 #endif
 
-#define WMIX_VERSION "V3.2 - 20200103"
+#define WMIX_VERSION "V3.3 - 20200105"
 
 #define WMIX_MSG_PATH "/tmp/wmix"
 #define WMIX_MSG_PATH_CLEAR "rm -rf /tmp/wmix/*"
@@ -47,7 +47,7 @@ typedef struct SNDPCMContainer {
 
 #define WMIX_CHANNELS    1
 #define WMIX_SAMPLE      16
-#define WMIX_FREQ        16000
+#define WMIX_FREQ        8000
 
 typedef struct{
     //type[0,7]:
@@ -61,11 +61,9 @@ typedef struct{
     //      8/清空播放列表
     //      9/排头播放
     //      10/排尾播放
-    //      11/rtp send
-    //      12/rtp recv
+    //      11/rtp send pcma
+    //      12/rtp recv pcma
     //      13/录音aac文件
-    //      14/fifo录音aac流
-    //      15/fifo播放aac流
     //type[8,15]: reduce
     //type[16,23]: repeatInterval
     long type;
@@ -103,6 +101,7 @@ typedef struct{
     //
     uint8_t run;//全局正常运行标志
     uint8_t loopWord;//每个播放线程的循环标志都要与该值一致,否则循环结束,用于打断全局播放
+    uint8_t loopWordRecord;
     uint32_t tick;//播放指针启动至今走过的字节数
     //
     uint32_t thread_sys;//线程计数 增加线程时+1 减少时-1 等于0时全部退出

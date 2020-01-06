@@ -29,11 +29,9 @@ typedef struct{
     //      8/清空播放列表
     //      9/排头播放
     //      10/排尾播放
-    //      11/rtp send
-    //      12/rtp recv
+    //      11/rtp send pcma
+    //      12/rtp recv pcma
     //      13/录音aac文件
-    //      14/fifo录音aac流
-    //      15/fifo播放aac流
     //type[8,15]: reduce
     //type[16,23]: repeatInterval
     long type;
@@ -393,4 +391,81 @@ bool wmix_check_id(int id)
     if(access(msgPath, F_OK) == 0)
         return true;
     return false;
+}
+
+//============= shm
+#include <sys/shm.h>
+int shm_create(char *path, int flag, int size, void **mem)
+{
+    key_t key = ftok(path, flag);
+    if(key < 0)
+    {
+        fprintf(stderr, "get key error\n");
+        return -1;
+    }
+    int id;
+    id = shmget(key, size, 0666);
+    if(id < 0)
+        id = shmget(key, size, IPC_CREAT|0666);
+    if(id < 0)
+    {
+        fprintf(stderr, "get id error\n");
+        return -1;
+    }
+    if(mem)
+        *mem = shmat(id, NULL, 0);
+
+    return id;
+}
+int shm_destroy(int id)
+{
+	return shmctl(id,IPC_RMID,NULL);
+}
+#define AI_CIRCLE_BUFF_LEN 10240
+
+typedef struct{
+    int16_t w;
+    int16_t buff[AI_CIRCLE_BUFF_LEN+4];
+}HiaudioAi_Circle;
+
+static HiaudioAi_Circle *ai_circle = NULL;
+
+int16_t wmix_mem_read(int16_t *dat, int16_t len, int16_t *addr, bool wait)
+{
+    int16_t i = 0;
+    int16_t w = *addr;
+    //
+    if(!ai_circle)
+    {
+        shm_create("/tmp/wmix", 'h', sizeof(HiaudioAi_Circle), &ai_circle);
+        if(!ai_circle)
+        {
+            fprintf(stderr, "wmix_mem_read: shm_create err !!\n");
+            return 0;
+        }
+        //
+        w = ai_circle->w;
+    }
+    //
+    if(w < 0 || w >= AI_CIRCLE_BUFF_LEN)
+        w = ai_circle->w;
+    for(i = 0; i < len; i++)
+    {
+        if(w == ai_circle->w)
+        {
+            if(wait && ai_circle)
+            {
+                usleep(1000);
+                continue;
+            }
+            break;
+        }
+        //
+        *dat++ = ai_circle->buff[w++];
+        if(w >= AI_CIRCLE_BUFF_LEN)
+            w = 0;
+    }
+    *addr = w;
+    //
+    return i;
 }

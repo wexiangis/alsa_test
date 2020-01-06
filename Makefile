@@ -13,7 +13,9 @@ ROOT=$(shell pwd)
 
 obj-wmix+= ./src/wmix.c ./src/wmix.h \
 		./src/wav.c ./src/wav.h \
-		./src/id3.c ./src/id3.h
+		./src/id3.c ./src/id3.h \
+		./src/rtp.c ./src/rtp.h \
+		./src/g711codec.c ./src/g711codec.h
 
 obj-wmixmsg+= ./src/wmix_user.c \
 		./src/wmix_user.h \
@@ -24,10 +26,20 @@ obj-test+= ./src/wmix_user.c \
 		./src/wav.c ./src/wav.h \
 		./src/test.c
 
+obj-sendpcm+= ./src/sendPCM.c \
+		./src/rtp.c ./src/rtp.h \
+		./src/g711codec.c ./src/g711codec.h
+
+obj-recvpcm+= ./src/recvPCM.c \
+		./src/rtp.c ./src/rtp.h \
+		./src/g711codec.c ./src/g711codec.h
+
 target:
 	@$(cc) -Wall -o wmix $(obj-wmix) -L./libs/lib -I./libs/include -lpthread -lasound -lm -ldl -lmad
 	@$(cc) -Wall -o wmixMsg $(obj-wmixmsg) -lpthread
 	@$(cc) -Wall -o test $(obj-test) -lpthread
+	@$(cc) -Wall -o sendpcm $(obj-sendpcm)
+	@$(cc) -Wall -o recvpcm $(obj-recvpcm)
 	@echo "---------- all complete !! ----------"
 
 libs: dpkg-alsa alsa dpkg-mad mad
@@ -53,7 +65,7 @@ alsa:
 	cd -
 
 clean:
-	@rm -rf ./test ./wmix ./wmixMsg
+	@rm -rf ./test ./wmix ./wmixMsg ./sendpcm ./recvpcm
 
 cleanall :
 	@rm -rf ./test ./wmix ./wmixMsg ./libs/* -rf

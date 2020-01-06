@@ -19,8 +19,8 @@ void help(char *argv0)
         "  -d reduce : 背景音削减倍数,取值[1~255]\n"
         "  -v volume : 音量设置0~10\n"
         "  -k id : 关闭指定id的语音,id=0时关闭所有\n"
-        "  -r : 录音模式,wav格式(默认单通道/16bits/16000Hz/5秒)\n"
-        "  -raac : 录音模式,aac格式(默认单通道/16bits/16000Hz/5秒)\n"
+        "  -r : 录音模式,wav格式(默认单通道/16bits/8000Hz/5秒)\n"
+        "  -raac : 录音模式,aac格式(默认单通道/16bits/8000Hz/5秒)\n"
         "  -rc chn : 指定录音通道数[1,2]\n"
         "  -rr freq : 指定录音频率[8000,11025,16000,22050,32000,44100]\n"
         "  -rt time : 指定录音时长秒\n"
@@ -54,7 +54,7 @@ int main(int argc, char **argv)
     int volume = -1;
     int id = -1;
     int order = 2;
-    int rt = 5, rc = 1, rr = 16000;
+    int rt = 5, rc = 1, rr = 8000;
     char *ip;
     int port = 9999;
     bool useAAC = false;

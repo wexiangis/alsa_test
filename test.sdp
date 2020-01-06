@@ -1,0 +1,4 @@
+m=audio 9832 RTP/AVP 8
+a=rtpmap:8 pcma/8000/1
+a=fmtp:8 sizeLength=13;config=1588;
+c=IN IP4 127.0.0.1
