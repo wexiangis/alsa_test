@@ -80,17 +80,18 @@ int wmix_record(
     bool useAAC);
 
 //----- rtp -----
-//chn: 声道数(取值1,2)
-//bitWidth: 采样位数bit(取值16)
-//freq: 频率(取值44100,32000,22050,16000,11025,8000)
-//返回: >0 正常返回特定id,可用于"wmix_play_kill(id)"
-int wmix_rtp_recv(char *ip, int port, int chn, int bitWidth, int freq);
 
+//type: 0/pcma 1/aac(暂不支持)
+//chn: pcma只支持1通道
+//freq: pcma只支持8000Hz
 //返回: >0 正常返回特定id,可用于"wmix_play_kill(id)"
-//chn: 声道数(取值1,2)
-//bitWidth: 采样位数bit(取值16)
-//freq: 频率(取值44100,32000,22050,16000,11025,8000)
-int wmix_rtp_send(char *ip, int port, int chn, int bitWidth, int freq);
+int wmix_rtp_recv(char *ip, int port, int chn, int freq, int type);
+
+//type: 0/pcma 1/aac(暂不支持)
+//chn: pcma只支持1通道
+//freq: pcma只支持8000Hz
+//返回: >0 正常返回特定id,可用于"wmix_play_kill(id)"
+int wmix_rtp_send(char *ip, int port, int chn, int freq, int type);
 
 //rtp流控制
 //id: 从上面两个函数返回的id值
@@ -100,10 +101,11 @@ void wmix_rtp_ctrl(int id, int ctrl, char *ip, int port);
 //----- 其它 -----
 //正常返回0
 int wmix_reset(void);
+
 //检查指定id的音频是否存在
 bool wmix_check_id(int id);
 
-//读共享内存
+//从共享内存读取录音数据
 //dat: 传入数据保存地址
 //len: 按int16_t计算的数据长度
 //addr: 返回当前在循环缓冲区中读数据的位置

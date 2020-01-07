@@ -340,7 +340,7 @@ int wmix_reset(void)
     return 0;
 }
 
-int _wmix_rtp(char *ip, int port, int chn, int bitWidth, int freq, bool isSend)
+int _wmix_rtp(char *ip, int port, int chn, int freq, bool isSend, int type)
 {
     WMix_Msg msg;
     char msgPath[128] = {0};
@@ -362,7 +362,7 @@ int _wmix_rtp(char *ip, int port, int chn, int bitWidth, int freq, bool isSend)
     memset(&msg, 0, sizeof(WMix_Msg));
     msg.type = isSend?11:12;
     msg.value[0] = chn;
-    msg.value[1] = bitWidth;
+    msg.value[1] = 16;
     msg.value[2] = (freq>>8)&0xff;
     msg.value[3] = freq&0xff;
     msg.value[4] = (port>>8)&0xff;
@@ -387,14 +387,14 @@ int _wmix_rtp(char *ip, int port, int chn, int bitWidth, int freq, bool isSend)
     return redId;
 }
 
-int wmix_rtp_recv(char *ip, int port, int chn, int bitWidth, int freq)
+int wmix_rtp_recv(char *ip, int port, int chn, int freq, int type)
 {
-    return _wmix_rtp(ip, port, chn, bitWidth, freq, false);
+    return _wmix_rtp(ip, port, chn, freq, false, type);
 }
 
-int wmix_rtp_send(char *ip, int port, int chn, int bitWidth, int freq)
+int wmix_rtp_send(char *ip, int port, int chn, int freq, int type)
 {
-    return _wmix_rtp(ip, port, chn, bitWidth, freq, true);
+    return _wmix_rtp(ip, port, chn, freq, true, type);
 }
 
 //rtp流控制
