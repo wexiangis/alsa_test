@@ -6,8 +6,10 @@
 #ifndef _RTP_H_
 #define _RTP_H_
 #include <stdint.h>
+#include <stdlib.h>
 #include <netinet/in.h>
 #include <pthread.h>//mtex
+#include <sys/time.h>
 
 #define RTP_VESION              2
 
@@ -122,5 +124,7 @@ int aac_parseHeader(uint8_t* in, AacHeader* res, uint8_t show);
 
 //返回总长度
 int aac_header(uint8_t* in, uint8_t chn, uint16_t freq, uint16_t codeRate, uint16_t datLen);
+
+__time_t getTickUs(void);
 
 #endif //_RTP_H_

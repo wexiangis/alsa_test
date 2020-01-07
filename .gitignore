@@ -1,2 +1,6 @@
 .vscode/*
 libs/*
+wmix*
+test
+recvpcm
+sendpcm

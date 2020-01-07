@@ -26,6 +26,8 @@ int main(int argc, char* argv[])
     int timestamp = 1000000*1024/(16000*2*2);
     int seekStart = 0;
 
+    __time_t tick1, tick2;
+
     unsigned char pcm[RTP_PCMA_PKT_SIZE*2];
 
     if(argc != 4)
@@ -63,6 +65,8 @@ int main(int argc, char* argv[])
 
     while(1)
     {
+        tick1 = getTickUs();
+
         printf("--------------------------------\n");
 
         if(!wsdp)
@@ -86,7 +90,12 @@ int main(int argc, char* argv[])
         
         rtpPacket.rtpHeader.timestamp += timestamp;
 
-        usleep(20000);
+        tick2 = getTickUs();
+        if(tick2 > tick1 && tick2 - tick1 < 20000)
+            usleep(20000 - (tick2 - tick1));
+        else
+            usleep(1000);
+        printf("tick1: %d, tick2: %d, delay: %d\n", tick1, tick2, 20000-(tick2-tick1));
     }
 
     close(fd);

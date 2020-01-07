@@ -41,14 +41,6 @@ void delayus(unsigned int us)
     select(0, NULL, NULL, NULL, &delay);
 }
 
-__time_t getTickUs(void)
-{
-    struct timespec tp={0};
-    struct timeval  tv={0};
-    gettimeofday(&tv,NULL);
-    return tv.tv_sec*1000000u+tv.tv_usec;
-}
-
 /*******************************************************************************
  * 名称: sys_volume_set
  * 功能: 扬声器音量设置

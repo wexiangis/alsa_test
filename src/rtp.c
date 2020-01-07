@@ -298,3 +298,12 @@ int aac_parseHeader(uint8_t* in, AacHeader* res, uint8_t show)
         return -1;
     }
 }
+
+//
+__time_t getTickUs(void)
+{
+    struct timespec tp={0};
+    struct timeval  tv={0};
+    gettimeofday(&tv,NULL);
+    return tv.tv_sec*1000000u+tv.tv_usec;
+}
