@@ -31,6 +31,8 @@ int rtp_send(SocketStruct *ss, RtpPacket* rtpPacket, uint32_t dataSize)
 {
     int ret;
 
+    pthread_mutex_lock(&ss->lock);
+
     rtpPacket->rtpHeader.seq = htons(rtpPacket->rtpHeader.seq);
     rtpPacket->rtpHeader.timestamp = htonl(rtpPacket->rtpHeader.timestamp);
     rtpPacket->rtpHeader.ssrc = htonl(rtpPacket->rtpHeader.ssrc);
@@ -58,12 +60,16 @@ int rtp_send(SocketStruct *ss, RtpPacket* rtpPacket, uint32_t dataSize)
 
     rtpPacket->rtpHeader.seq++;
 
+    pthread_mutex_unlock(&ss->lock);
+
     return ret;
 }
 
 int rtp_recv(SocketStruct *ss, RtpPacket* rtpPacket, uint32_t *dataSize)
 {
     int ret;
+
+    pthread_mutex_lock(&ss->lock);
 
     ret = recvfrom(
         ss->fd, 
@@ -83,6 +89,8 @@ int rtp_recv(SocketStruct *ss, RtpPacket* rtpPacket, uint32_t *dataSize)
         else
             *dataSize = 0;
     }
+
+    pthread_mutex_unlock(&ss->lock);
 
     return ret;
 }
@@ -121,6 +129,8 @@ SocketStruct* rtp_socket(uint8_t *ip, uint16_t port, uint8_t isServer)
             return NULL;
         }
     }
+
+    pthread_mutex_init(&ss->lock, NULL);
 
     return ss;
 }

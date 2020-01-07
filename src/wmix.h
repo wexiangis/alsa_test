@@ -4,6 +4,13 @@
 //0/alsa 1/hi3516
 #define WMIX_MODE 0
 
+//rtp发收同fd
+#if(WMIX_MODE!=1)
+#define RTP_ONE_SR 0
+#else
+#define RTP_ONE_SR 1
+#endif
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>

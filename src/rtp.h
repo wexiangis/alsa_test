@@ -7,6 +7,7 @@
 #define _RTP_H_
 #include <stdint.h>
 #include <netinet/in.h>
+#include <pthread.h>//mtex
 
 #define RTP_VESION              2
 
@@ -62,13 +63,7 @@ typedef struct{
 }RtpHeader;
 
 typedef struct {
-    RtpHeader rtpHeader;    
-
-    // uint8_t len1;//0x00
-    // uint8_t len2;//0x10
-    // uint8_t len3;//(datLen>>5)&0xFF
-    // uint8_t len4;//datLen&0x1F
-
+    RtpHeader rtpHeader;
     uint8_t payload[4096];
 }RtpPacket;
 
@@ -76,6 +71,7 @@ typedef struct{
     int fd;
     struct sockaddr_in addr;
     size_t addrSize;
+    pthread_mutex_t lock;
 }SocketStruct;
 
 void rtp_header(RtpPacket* rtpPacket, uint8_t cc, uint8_t x,

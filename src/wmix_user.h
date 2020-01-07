@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define WMIX_VERSION "V3.3 - 20200105"
+#define WMIX_VERSION "V3.3 - 20200107"
 
 //----- 设置音量 count/div 例如: 30% -> 30/100 -----
 //count: 音量  div: 分度
@@ -91,6 +91,11 @@ int wmix_rtp_recv(char *ip, int port, int chn, int bitWidth, int freq);
 //bitWidth: 采样位数bit(取值16)
 //freq: 频率(取值44100,32000,22050,16000,11025,8000)
 int wmix_rtp_send(char *ip, int port, int chn, int bitWidth, int freq);
+
+//rtp流控制
+//id: 从上面两个函数返回的id值
+//ctrl: 0/运行 1/停止 2/重连(启用ip,port参数)
+void wmix_rtp_ctrl(int id, int ctrl, char *ip, int port);
 
 //----- 其它 -----
 //正常返回0

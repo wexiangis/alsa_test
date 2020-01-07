@@ -41,6 +41,14 @@ void delayus(unsigned int us)
     select(0, NULL, NULL, NULL, &delay);
 }
 
+__time_t getTickUs(void)
+{
+    struct timespec tp={0};
+    struct timeval  tv={0};
+    gettimeofday(&tv,NULL);
+    return tv.tv_sec*1000000u+tv.tv_usec;
+}
+
 /*******************************************************************************
  * 名称: sys_volume_set
  * 功能: 扬声器音量设置
@@ -1771,6 +1779,7 @@ void wmix_rtp_recv_aac_thread(WMixThread_Param *wmtp)
         //播放文件
         if(retLen > 0)
         {
+            //等播放指针赶上写入进度
             if(total2 > totalWait)
             {
                 while(wmtp->wmix->run &&
@@ -1826,6 +1835,9 @@ void wmix_rtp_recv_aac_thread(WMixThread_Param *wmtp)
 }
 #endif
 
+#if(RTP_ONE_SR)
+static SocketStruct *rtp_sr = NULL;
+#endif
 void wmix_rtp_send_pcma_thread(WMixThread_Param *wmtp)
 {
     char *path = (char*)&wmtp->param[6];
@@ -1844,6 +1856,13 @@ void wmix_rtp_send_pcma_thread(WMixThread_Param *wmtp)
     ssize_t ret, total = 0;
     uint32_t second = 0, bytes_p_second, bpsCount = 0;
     //
+    int ctrl = 0;
+#if(!RTP_ONE_SR)
+    SocketStruct *rtp_sr = NULL;
+#endif
+    //
+    __time_t tick1, tick2;
+    //
 #if(WMIX_MODE==1)
     int16_t record_addr;
     unsigned char *buff;
@@ -1851,7 +1870,6 @@ void wmix_rtp_send_pcma_thread(WMixThread_Param *wmtp)
     SNDPCMContainer_t *record = NULL;
 #endif
     //
-    SocketStruct *ss;
     RtpPacket rtpPacket;
     //
     uint8_t loopWord;
@@ -1871,8 +1889,9 @@ void wmix_rtp_send_pcma_thread(WMixThread_Param *wmtp)
         return;
     }
     //初始化rtp
-    ss = rtp_socket(path, port, 1);
-    if(!ss){
+    if(!rtp_sr)
+        rtp_sr = rtp_socket(path, port, 1);
+    if(!rtp_sr){
         fprintf(stderr, "rtp_socket: err\n");
         return;
     }
@@ -1885,7 +1904,9 @@ void wmix_rtp_send_pcma_thread(WMixThread_Param *wmtp)
     record = wmix_alsa_init(WMIX_CHANNELS, WMIX_SAMPLE, WMIX_FREQ, 'c');
     if(!record){
 #endif
-        free(ss);
+#if(!RTP_ONE_SR)
+        free(rtp_sr);
+#endif
         fprintf(stderr, "wmix_rtp_send_pcma_thread: wmix_alsa_init err\n");
         return;
     }
@@ -1936,10 +1957,32 @@ void wmix_rtp_send_pcma_thread(WMixThread_Param *wmtp)
             }
             else
             {
+                printf("RTP-SEND-PCM: msg recv %d\n", msg.type);
                 //控制信号
-                ;
+                if(msg.type == 0)//运行
+                    ctrl = 0;
+                else if(msg.type == 1)//停止
+                    ctrl = 1;
+                else if(msg.type == 2)//重连
+                {
+                    port = (msg.value[0]<<8) | msg.value[1];
+                    path = msg.value[2];
+                    //
+                    pthread_mutex_lock(&rtp_sr->lock);
+                    close(rtp_sr->fd);
+                    rtp_sr->fd = socket(AF_INET, SOCK_DGRAM, 0);
+                    rtp_sr->addr.sin_port = htons(port);
+                    rtp_sr->addr.sin_addr.s_addr = inet_addr(path);
+                    rtp_sr->addrSize = sizeof(rtp_sr->addr);
+                    bind(rtp_sr->fd, &rtp_sr->addr, rtp_sr->addrSize);
+                    pthread_mutex_unlock(&rtp_sr->lock);
+                    //
+                    ctrl = 0;
+                }
             }
         }
+        //
+        tick1 = getTickUs();
         //
 #if(WMIX_MODE==1)
         ret = hiaudio_ai_read(buff, buffSize, &record_addr, true);
@@ -1948,14 +1991,17 @@ void wmix_rtp_send_pcma_thread(WMixThread_Param *wmtp)
 #endif
         if(ret > 0)
         {
-            bpsCount += ret;
-            total += ret;
-            //录制时间
-            if(bpsCount > bytes_p_second)
+            if(ctrl == 0)
             {
-                bpsCount -= bytes_p_second;
-                second = total/bytes_p_second;
-                if(wmtp->wmix->debug) printf("  RTP-SEND-PCM: %s:%d %02d:%02d\n", path, port, second/60, second%60);
+                bpsCount += ret;
+                total += ret;
+                //录制时间
+                if(bpsCount > bytes_p_second)
+                {
+                    bpsCount -= bytes_p_second;
+                    second = total/bytes_p_second;
+                    if(wmtp->wmix->debug) printf("  RTP-SEND-PCM: %s:%d %02d:%02d\n", path, port, second/60, second%60);
+                }
             }
             //
 #if(WMIX_MODE==1)
@@ -1963,9 +2009,27 @@ void wmix_rtp_send_pcma_thread(WMixThread_Param *wmtp)
 #else
             ret = PCM2G711a(record->data_buf, rtpPacket.payload, ret, 0);
 #endif
-            if(rtp_send(ss, &rtpPacket, ret) < ret)
-                fprintf(stderr, "wmix_rtp_send_pcma_thread: rtp_send err !!\n");
-            rtpPacket.rtpHeader.timestamp += ret;
+            if(ctrl == 0)
+            {
+                if(rtp_send(rtp_sr, &rtpPacket, ret) < ret)
+                {
+                    fprintf(stderr, "wmix_rtp_send_pcma_thread: rtp_send err !!\n");
+                    delayus(1000000);
+                    //重连
+                    pthread_mutex_lock(&rtp_sr->lock);
+                    close(rtp_sr->fd);
+                    rtp_sr->fd = socket(AF_INET, SOCK_DGRAM, 0);
+                    bind(rtp_sr->fd, &rtp_sr->addr, rtp_sr->addrSize);
+                    pthread_mutex_unlock(&rtp_sr->lock);
+                    //
+                    continue;
+                }
+                rtpPacket.rtpHeader.timestamp += ret;
+            }
+            //
+            tick2 = getTickUs();
+            if(tick2 > tick1 && tick2 - tick1 < 18000)
+                delayus(18000 - (tick2 - tick1));
         }
         else
         {
@@ -1989,8 +2053,10 @@ void wmix_rtp_send_pcma_thread(WMixThread_Param *wmtp)
 #if(WMIX_MODE==1)
     free(buff);
 #endif
-    close(ss->fd);
-    free(ss);
+#if(!RTP_ONE_SR)
+    close(rtp_sr->fd);
+    free(rtp_sr);
+#endif
     //
     if(wmtp->param)
         free(wmtp->param);
@@ -2020,12 +2086,17 @@ void wmix_rtp_recv_pcma_thread(WMixThread_Param *wmtp)
     double totalPow;
     uint8_t rdce = 2, rdceIsMe = 0;
     //
-    SocketStruct *ss;
+    int ctrl = 0;
+#if(!RTP_ONE_SR)
+    SocketStruct *rtp_sr = NULL;
+#endif
+    //
     RtpPacket rtpPacket;
     int retSize;
     //初始化rtp
-    ss = rtp_socket(path, port, 0);
-    if(!ss){
+    if(!rtp_sr)
+        rtp_sr = rtp_socket(path, port, 0);
+    if(!rtp_sr){
         fprintf(stderr, "rtp_socket: err\n");
         return;
     }
@@ -2055,7 +2126,7 @@ void wmix_rtp_recv_pcma_thread(WMixThread_Param *wmtp)
     buffSize = bytes_p_second;
     buffSize2 = WMIX_CHANNELS*WMIX_SAMPLE/8*WMIX_FREQ;
     totalPow = (double)buffSize2/buffSize;
-    totalWait = buffSize2/2;
+    totalWait = 320*4;//buffSize2/2;
     //
     if(wmtp->wmix->debug) printf("<< RTP-RECV-PCM: %s:%d start >>\n   通道数: %d\n   采样位数: %d bit\n   采样率: %d Hz\n\n", 
         path, port, chn, sample, freq);
@@ -2079,12 +2150,45 @@ void wmix_rtp_recv_pcma_thread(WMixThread_Param *wmtp)
             }
             else
             {
+                printf("RTP-RECV-PCM: msg recv %d\n", msg.type);
                 //控制信号
-                ;
+                if(msg.type == 0)//运行
+                    ctrl = 0;
+                else if(msg.type == 1)//停止
+                    ctrl = 1;
+                else if(msg.type == 2)//重连
+                {
+                    port = (msg.value[0]<<8) | msg.value[1];
+                    path = msg.value[2];
+                    //
+                    pthread_mutex_lock(&rtp_sr->lock);
+                    close(rtp_sr->fd);
+                    rtp_sr->fd = socket(AF_INET, SOCK_DGRAM, 0);
+                    rtp_sr->addr.sin_port = htons(port);
+                    rtp_sr->addr.sin_addr.s_addr = inet_addr(path);
+                    rtp_sr->addrSize = sizeof(rtp_sr->addr);
+                    bind(rtp_sr->fd, &rtp_sr->addr, rtp_sr->addrSize);
+                    pthread_mutex_unlock(&rtp_sr->lock);
+                    //
+                    ctrl = 0;
+                }
             }
         }
+        //等播放指针赶上写入进度
+        // if(total2 > totalWait)
+        // {
+        //     while(wmtp->wmix->run &&
+        //         get_tick_err(wmtp->wmix->tick, tick) < 
+        //         total2 - totalWait)
+        //     {
+        //         rtp_recv(rtp_sr, &rtpPacket, &retSize);
+        //         delayus(1000);
+        //     }
+        //     if(!wmtp->wmix->run)
+        //         break;
+        // }
         //读rtp数据
-        ret = rtp_recv(ss, &rtpPacket, &retSize);
+        ret = rtp_recv(rtp_sr, &rtpPacket, &retSize);
         if(ret > 0 && retSize > 0)
             ret = G711a2PCM(rtpPacket.payload, buff, retSize, 0);
         else
@@ -2092,15 +2196,6 @@ void wmix_rtp_recv_pcma_thread(WMixThread_Param *wmtp)
         //播放文件
         if(ret > 0)
         {
-            if(total2 > totalWait)
-            {
-                while(wmtp->wmix->run &&
-                    get_tick_err(wmtp->wmix->tick, tick) < 
-                    total2 - totalWait)
-                    delayus(10000);
-                if(!wmtp->wmix->run)
-                    break;
-            }
             //写入循环缓冲区
             wmtp->wmix->vipWrite = wmix_load_wavStream(
                 wmtp->wmix, 
@@ -2123,7 +2218,7 @@ void wmix_rtp_recv_pcma_thread(WMixThread_Param *wmtp)
             continue;
         }
         else
-            delayus(1000);
+            delayus(10000);
     }
     //用完关闭
     wmtp->wmix->vipWrite.U8 = 0;
@@ -2132,8 +2227,10 @@ void wmix_rtp_recv_pcma_thread(WMixThread_Param *wmtp)
     //删除文件
     if(msgPath)
         remove(msgPath);
-    close(ss->fd);
-    free(ss);
+#if(!RTP_ONE_SR)
+    close(rtp_sr->fd);
+    free(rtp_sr);
+#endif
     //线程计数
     wmtp->wmix->thread_play -= 1;
     //

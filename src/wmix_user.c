@@ -29,9 +29,11 @@ typedef struct{
     //      8/清空播放列表
     //      9/排头播放
     //      10/排尾播放
-    //      11/rtp send pcma
-    //      12/rtp recv pcma
+    //      11/rtp send
+    //      12/rtp recv
     //      13/录音aac文件
+    //      14/fifo录音aac流
+    //      15/fifo播放aac流
     //type[8,15]: reduce
     //type[16,23]: repeatInterval
     long type;
@@ -44,10 +46,10 @@ typedef struct{
 key_t msg_key;\
 int msg_fd;\
 if((msg_key = ftok(WMIX_MSG_PATH, WMIX_MSG_ID)) == -1){\
-    fprintf(stderr, "wmix_play_wav: ftok err\n");\
+    fprintf(stderr, "wmix: ftok err\n");\
     return -1;\
 }if((msg_fd = msgget(msg_key, 0666)) == -1){\
-    fprintf(stderr, "wmix_play_wav: msgget err\n");\
+    fprintf(stderr, "wmix: msgget err\n");\
     return -1;\
 }
 
@@ -369,6 +371,18 @@ int _wmix_rtp(char *ip, int port, int chn, int bitWidth, int freq, bool isSend)
     strcpy((char*)&msg.value[strlen(ip)+6+1], msgPath);
     //发出
     msgsnd(msg_fd, &msg, WMIX_MSG_BUFF_SIZE, IPC_NOWAIT);
+    //等待路径创建
+    int timeout = 100;//1000ms超时
+    do{
+        if(timeout-- == 0)
+            break;
+        usleep(10000);
+    }while(access(msgPath, F_OK) != 0);
+    //
+    if(access(msgPath, F_OK) != 0){
+        fprintf(stderr, "_wmix_rtp: create %s timeout\n", msgPath);
+        return 0;
+    }
     //
     return redId;
 }
@@ -381,6 +395,38 @@ int wmix_rtp_recv(char *ip, int port, int chn, int bitWidth, int freq)
 int wmix_rtp_send(char *ip, int port, int chn, int bitWidth, int freq)
 {
     return _wmix_rtp(ip, port, chn, bitWidth, freq, true);
+}
+
+//rtp流控制
+//id: 从上面两个函数返回的id值
+//ctrl: 0/运行 1/停止 2/重连(启用ip,port参数)
+void wmix_rtp_ctrl(int id, int ctrl, char *ip, int port)
+{
+    char msgPath[128] = {0};
+    WMix_Msg msg;
+    //
+    if(id == 0)
+        return;
+    //
+    wmix_auto_path(msgPath, id);
+    //
+    key_t msg_key;
+    int msg_fd;
+    if((msg_key = ftok(msgPath, WMIX_MSG_ID)) == -1){
+        fprintf(stderr, "wmix_rtp_ctrl: ftok err\n");
+        return ;
+    }if((msg_fd = msgget(msg_key, 0666)) == -1){
+        fprintf(stderr, "wmix_rtp_ctrl: msgget err\n");
+        return ;
+    }
+    //装填 message
+    memset(&msg, 0, sizeof(WMix_Msg));
+    msg.type = ctrl;
+    msg.value[0] = (port>>8)&0xff;
+    msg.value[1] = port&0xff;
+    strcpy((char*)&msg.value[2], ip);
+    //发出
+    msgsnd(msg_fd, &msg, WMIX_MSG_BUFF_SIZE, IPC_NOWAIT);
 }
 
 bool wmix_check_id(int id)
