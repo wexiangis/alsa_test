@@ -8,7 +8,6 @@
 #include <string.h>
 
 #include "rtp.h"
-#include "g711codec.h"
 
 #define RTP_IP "127.0.0.1"
 #define RTP_PORT 9832
@@ -18,10 +17,10 @@ int main(int argc, char* argv[])
     int fd;
     int ret;
     SocketStruct *ss;
+    int dataSize;
+    uint8_t aacBuff[2048];
+    AacHeader AacHeader;
     RtpPacket rtpPacket;
-    unsigned char buff[1024];
-
-    int readSize = RTP_PCMA_PKT_SIZE;
 
     if(argc != 2)
     {
@@ -47,12 +46,13 @@ int main(int argc, char* argv[])
 
     while(1)
     {
-        ret = rtp_recv(ss, &rtpPacket, &readSize);
+        ret = rtp_recv(ss, &rtpPacket, &dataSize);
         if(ret > 0)
         {
-            printf("rtp_recv: %d / %d + %d\n", ret, ret-readSize, readSize);
-            ret = G711a2PCM(rtpPacket.payload, buff, readSize, 0);
-            write(fd, buff, ret);
+            printf("rtp_recv: %d / %d + %d\n", ret, ret-dataSize, dataSize);
+            aac_header(aacBuff, 2, 44100, 0x7FF, dataSize);
+            memcpy(&aacBuff[7], &rtpPacket.payload[4], dataSize);
+            write(fd, aacBuff, dataSize+7);
             continue;
         }
 

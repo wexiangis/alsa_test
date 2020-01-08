@@ -34,12 +34,20 @@ obj-recvpcm+= ./src/recvPCM.c \
 		./src/rtp.c ./src/rtp.h \
 		./src/g711codec.c ./src/g711codec.h
 
+obj-sendaac+= ./src/sendAAC.c \
+		./src/rtp.c ./src/rtp.h
+
+obj-recvaac+= ./src/recvAAC.c \
+		./src/rtp.c ./src/rtp.h
+
 target:
 	@$(cc) -Wall -o wmix $(obj-wmix) -L./libs/lib -I./libs/include -lpthread -lasound -lm -ldl -lmad
 	@$(cc) -Wall -o wmixMsg $(obj-wmixmsg) -lpthread
-	@$(cc) -Wall -o test $(obj-test) -lpthread
+	# @$(cc) -Wall -o test $(obj-test) -lpthread
 	@$(cc) -Wall -o sendpcm $(obj-sendpcm)
 	@$(cc) -Wall -o recvpcm $(obj-recvpcm)
+	@$(cc) -Wall -o sendaac $(obj-sendaac)
+	@$(cc) -Wall -o recvaac $(obj-recvaac)
 	@echo "---------- all complete !! ----------"
 
 libs: dpkg-alsa alsa dpkg-mad mad
@@ -65,7 +73,7 @@ alsa:
 	cd -
 
 clean:
-	@rm -rf ./test ./wmix ./wmixMsg ./sendpcm ./recvpcm
+	@rm -rf ./test ./wmix ./wmixMsg ./sendpcm ./recvpcm ./sendaac ./recvaac
 
 cleanall :
-	@rm -rf ./test ./wmix ./wmixMsg ./libs/* -rf
+	@rm -rf ./test ./wmix ./wmixMsg ./sendpcm ./recvpcm ./sendaac ./recvaac ./libs/* -rf

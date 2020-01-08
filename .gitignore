@@ -4,3 +4,5 @@ wmix*
 test
 recvpcm
 sendpcm
+recvaac
+sendaac
