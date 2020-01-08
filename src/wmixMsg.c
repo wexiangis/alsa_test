@@ -166,9 +166,9 @@ int main(int argc, char **argv)
     id = 0;
 
     if(rtps)
-        id = wmix_rtp_send(ip, port, rc, 16, rr);
+        id = wmix_rtp_send(ip, port, rc, rr, 0);
     if(rtpr)
-        id = wmix_rtp_recv(ip, port, rc, 16, rr);
+        id = wmix_rtp_recv(ip, port, rc, rr, 0);
 
     if(filePath && filePath[0] == '.')
     {
